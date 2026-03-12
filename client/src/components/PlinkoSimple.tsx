@@ -19,7 +19,7 @@ const REF_FONT_COUNT = 14;
 const REF_WALL_THICKNESS_MULT = 2.0;
 
 // ── Fixed grid dimensions (same on every screen) ──
-const PEGS_PER_ROW = 12;
+const PEGS_PER_ROW = 13;
 const PEG_ROWS = 19;
 const REF_SPACING = (REF_WIDTH - 2 * REF_BALL_RADIUS) / (PEGS_PER_ROW - 1);
 const REF_HEIGHT = REF_TOP_MARGIN + (PEG_ROWS - 1) * REF_SPACING + REF_BOX_HEIGHT + REF_BOTTOM_MARGIN;
@@ -31,7 +31,7 @@ const density = 5.05;
 const ACCENT_COLOR = "#059669";
 
 const DEFAULT_BOX_VALUES = [
-  0, 1, 5, 11, 17, 23, 26, 29, 32, 33, 34
+  0, 1, 3, 7, 14, 20, 24, 28, 31, 33, 34, 35
 ];
 
 // ── Precompute FIXED reference layout (never changes) ──
