@@ -362,6 +362,7 @@ export default function SimpleGame() {
           height: "100%",
           overflowY: "auto",
           scrollSnapType: "y mandatory",
+          scrollSnapStop: "always" as any,
           WebkitOverflowScrolling: "touch",
         }}
       >
@@ -371,6 +372,7 @@ export default function SimpleGame() {
             width: "100%",
             height: "100dvh",
             scrollSnapAlign: "start",
+            scrollSnapStop: "always" as any,
             display: "flex",
             flexDirection: "column",
             background: "#0a0a0a",
@@ -378,7 +380,7 @@ export default function SimpleGame() {
           }}
         >
           {/* Game area - 80dvh */}
-          <div style={{ height: "80dvh", position: "relative", flexShrink: 0 }}>
+          <div style={{ height: "85dvh", position: "relative", flexShrink: 0 }}>
             <PlinkoSimple ref={plinkoRef} onGameEnd={handleGameEnd} settings={plinkoSettings} />
 
             {showScore && lastScore !== null && (
@@ -418,7 +420,7 @@ export default function SimpleGame() {
           {/* Bottom bar: arrows + play - 20dvh */}
           <div
             style={{
-              height: "20dvh",
+              height: "15dvh",
               flexShrink: 0,
               display: "flex",
               alignItems: "center",
@@ -483,6 +485,7 @@ export default function SimpleGame() {
             width: "100%",
             height: "100dvh",
             scrollSnapAlign: "start",
+            scrollSnapStop: "always" as any,
             background: "#0a0a0a",
             display: "flex",
             flexDirection: "column",
