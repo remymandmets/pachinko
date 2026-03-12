@@ -136,7 +136,8 @@ const PlinkoSimple = forwardRef<PlinkoSimpleRef, PlinkoSimpleProps>(
       if (!containerRef.current) return;
       const measure = () => {
         const rect = containerRef.current!.getBoundingClientRect();
-        setDimensions({ w: Math.round(rect.width), h: Math.round(rect.height) });
+        const dpr = window.devicePixelRatio || 1;
+        setDimensions({ w: Math.round(rect.width * dpr), h: Math.round(rect.height * dpr) });
       };
       measure();
       const ro = new ResizeObserver(measure);
