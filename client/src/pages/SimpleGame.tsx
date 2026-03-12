@@ -49,7 +49,7 @@ const SETTING_GROUPS: Array<{
       { key: "refWidth", label: "Laius", min: 200, max: 800, step: 10 },
       { key: "pegsPerRow", label: "Pegid reas", min: 5, max: 25, step: 1 },
       { key: "pegRows", label: "Pegi ridu", min: 5, max: 40, step: 1 },
-      { key: "ballRadius", label: "Palli raadius", min: 4, max: 40, step: 1 },
+      { key: "ballRadius", label: "Palli raadius", min: 1, max: 40, step: 0.1 },
       { key: "pegRadius", label: "Pegi raadius", min: 1, max: 10, step: 0.5 },
       { key: "boxHeight", label: "Kasti kõrgus", min: 10, max: 100, step: 5 },
       { key: "topMargin", label: "Ülemine veeris", min: 20, max: 200, step: 5 },
@@ -377,8 +377,8 @@ export default function SimpleGame() {
             flexShrink: 0,
           }}
         >
-          {/* Game area */}
-          <div style={{ flex: 1, position: "relative", minHeight: 0 }}>
+          {/* Game area - 80dvh */}
+          <div style={{ height: "80dvh", position: "relative", flexShrink: 0 }}>
             <PlinkoSimple ref={plinkoRef} onGameEnd={handleGameEnd} settings={plinkoSettings} />
 
             {showScore && lastScore !== null && (
@@ -415,10 +415,10 @@ export default function SimpleGame() {
             )}
           </div>
 
-          {/* Bottom bar: arrows + play */}
+          {/* Bottom bar: arrows + play - 20dvh */}
           <div
             style={{
-              height: "clamp(60px, 10dvh, 80px)",
+              height: "20dvh",
               flexShrink: 0,
               display: "flex",
               alignItems: "center",
@@ -512,29 +512,29 @@ export default function SimpleGame() {
           )}
 
           {/* Settings grid */}
-          <div style={{ flex: 1, padding: "6px 10px", display: "flex", flexDirection: "column", gap: 4, overflow: "hidden" }}>
+          <div style={{ flex: 1, padding: "8px 10px", display: "flex", flexDirection: "column", gap: 6, overflow: "hidden" }}>
             {/* Peab / Keela */}
-            <div style={{ display: "flex", gap: 8 }}>
+            <div style={{ display: "flex", gap: 6 }}>
               <Stepper label="Peab" value={targetTotal ?? 0} onChange={(v) => setTargetTotal(v === 0 ? null : v)} step={1} color="#4ade80" />
               <Stepper label="Keela" value={avoidTotal ?? 0} onChange={(v) => setAvoidTotal(v === 0 ? null : v)} step={1} color="#f87171" />
             </div>
 
-            {/* Box values */}
-            <div style={{ background: "#141414", borderRadius: 8, padding: "4px 6px", border: "1px solid #282828" }}>
-              <div style={{ fontSize: 10, color: "#666", marginBottom: 3 }}>Kastid ({gameSettings.boxValues.length})</div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
+            {/* Box values - larger, more touch-friendly */}
+            <div style={{ background: "#141414", borderRadius: 8, padding: "6px 8px", border: "1px solid #282828" }}>
+              <div style={{ fontSize: 11, color: "#666", marginBottom: 4 }}>Kastid ({gameSettings.boxValues.length})</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 4 }}>
                 {gameSettings.boxValues.map((val, i) => (
-                  <div key={i} style={{ display: "flex", alignItems: "center" }}>
-                    <button onClick={() => handleBoxValueChange(i, val - 1)} style={miniBtn}>−</button>
-                    <span style={{ width: 24, textAlign: "center" as const, fontSize: 12, color: "#059669", fontWeight: 700 }}>{val}</span>
-                    <button onClick={() => handleBoxValueChange(i, val + 1)} style={miniBtn}>+</button>
+                  <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "center", background: "#1a1a1a", borderRadius: 6, border: "1px solid #333", height: 32 }}>
+                    <button onClick={() => handleBoxValueChange(i, val - 1)} style={boxBtn}>◀</button>
+                    <span style={{ flex: 1, textAlign: "center" as const, fontSize: 14, color: "#059669", fontWeight: 700 }}>{val}</span>
+                    <button onClick={() => handleBoxValueChange(i, val + 1)} style={boxBtn}>▶</button>
                   </div>
                 ))}
               </div>
             </div>
 
             {/* All settings in 2-column grid */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, flex: 1 }}>
               {ALL_SETTINGS_FLAT.map((f) => (
                 <Stepper
                   key={f.key}
@@ -566,10 +566,16 @@ export default function SimpleGame() {
 const ALL_SETTINGS_FLAT = SETTING_GROUPS.flatMap(g => g.fields);
 
 const miniBtn: React.CSSProperties = {
-  width: 18, height: 18, padding: 0, border: "none", borderRadius: 4,
-  background: "#282828", color: "#888", fontSize: 12, fontWeight: 700,
+  width: 22, height: 22, padding: 0, border: "none", borderRadius: 4,
+  background: "#282828", color: "#888", fontSize: 13, fontWeight: 700,
   cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
   lineHeight: 1,
+};
+
+const boxBtn: React.CSSProperties = {
+  width: 26, height: "100%", padding: 0, border: "none", borderRadius: 0,
+  background: "transparent", color: "#059669", fontSize: 11, fontWeight: 700,
+  cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
 };
 
 function Stepper({ label, value, onChange, step = 1, min, max, color }: {
@@ -586,8 +592,8 @@ function Stepper({ label, value, onChange, step = 1, min, max, color }: {
   return (
     <div style={{
       display: "flex", alignItems: "center", justifyContent: "space-between",
-      background: "#141414", borderRadius: 6, padding: "3px 6px",
-      border: "1px solid #282828", height: 28,
+      background: "#141414", borderRadius: 6, padding: "3px 8px",
+      border: "1px solid #282828", height: 32,
     }}>
       <span style={{ fontSize: 10, color: "#999", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{label}</span>
       <div style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0 }}>
