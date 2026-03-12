@@ -364,9 +364,7 @@ export default function SimpleGame() {
     });
   }, []);
 
-  const handleResetSettings = useCallback(() => {
-    setGameSettings({ ...DEFAULT_SETTINGS });
-  }, []);
+
 
   return (
     <div
@@ -526,10 +524,6 @@ export default function SimpleGame() {
               <span style={{ fontSize: 11, color: testStatus === "completed" ? "#4ade80" : testStatus === "failed" ? "#f87171" : "#666", minWidth: 20 }}>
                 {testStatus === "completed" ? "✓" : testStatus === "failed" ? "✗" : ""}
               </span>
-              <button onClick={handleResetSettings}
-                style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid #555", background: "#222", color: "#f87171", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
-                Reset
-              </button>
             </div>
           </div>
           {(testError || constraintError) && (
