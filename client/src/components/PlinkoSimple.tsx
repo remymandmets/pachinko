@@ -149,13 +149,12 @@ const PlinkoSimple = forwardRef<PlinkoSimpleRef, PlinkoSimpleProps>(
     useEffect(() => {
       if (!dimensions) return;
       const { w: W, h: H } = dimensions;
-      const scale = Math.min(W / REF_WIDTH, H / REF_HEIGHT);
-      const boardW = REF_WIDTH * scale;
+      const scale = W / REF_WIDTH; // always fill width edge-to-edge
       const boardH = REF_HEIGHT * scale;
       renderRef.current = {
         scale,
-        offsetX: (W - boardW) / 2,
-        offsetY: (H - boardH) / 2,
+        offsetX: 0,
+        offsetY: Math.max(0, (H - boardH) / 2),
         W, H,
       };
     }, [dimensions]);
@@ -305,11 +304,6 @@ const PlinkoSimple = forwardRef<PlinkoSimpleRef, PlinkoSimpleProps>(
         ctx.save();
         ctx.translate(offsetX, offsetY);
         ctx.scale(scale, scale);
-
-        // Debug: side walls
-        ctx.fillStyle = "rgba(255,0,0,0.8)";
-        ctx.fillRect(leftWallX - REF_WALL_THICKNESS / 2, 0, REF_WALL_THICKNESS, REF_HEIGHT);
-        ctx.fillRect(rightWallX - REF_WALL_THICKNESS / 2, 0, REF_WALL_THICKNESS, REF_HEIGHT);
 
         // Pegs
         for (let row = 0; row < PEG_ROWS; row++) {
