@@ -104,12 +104,13 @@ export default function SimpleGame() {
     const dy = touchStartY.current - e.changedTouches[0].clientY;
     const dt = Date.now() - touchStartTime.current;
     const velocity = Math.abs(dy) / dt; // px/ms
-    const threshold = 80; // minimum px to swipe
-    const minVelocity = 0.3; // minimum speed
 
-    if (Math.abs(dy) > threshold && velocity > minVelocity) {
-      if (dy > 0 && activePage === 0) setActivePage(1); // swipe up → settings
-      if (dy < 0 && activePage === 1) setActivePage(0); // swipe down → game
+    if (activePage === 0 && dy > 80 && velocity > 0.3) {
+      // Strong swipe up from game → settings
+      setActivePage(1);
+    } else if (activePage === 1 && dy < -30) {
+      // Light swipe down from settings → game (easy to go back)
+      setActivePage(0);
     }
   }, [activePage]);
 
