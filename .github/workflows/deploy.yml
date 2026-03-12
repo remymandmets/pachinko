@@ -21,15 +21,18 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Deploy to server
-        uses: easingthemes/ssh-deploy@main
-        with:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          REMOTE_HOST: 95.217.16.18
-          REMOTE_USER: root
-          SOURCE: "dist/ package.json package-lock.json"
-          TARGET: /opt/pachinko
-          SCRIPT_AFTER: |
-            cd /opt/pachinko
-            npm ci
-            systemctl restart pachinko
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H 95.217.16.18 >> ~/.ssh/known_hosts
+
+      - name: Deploy files
+        run: |
+          rsync -avz --delete dist/ root@95.217.16.18:/opt/pachinko/dist/
+          rsync -avz package.json package-lock.json root@95.217.16.18:/opt/pachinko/
+
+      - name: Restart app
+        run: |
+          ssh root@95.217.16.18 "cd /opt/pachinko && npm ci && systemctl restart pachinko"
