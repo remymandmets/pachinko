@@ -2,64 +2,67 @@ import React, {
   useRef,
   useEffect,
   useState,
+  useMemo,
   forwardRef,
   useImperativeHandle,
 } from "react";
 import * as Matter from "matter-js";
 
-// ── Reference design (FIXED — physics always runs at these coords) ──
-const REF_WIDTH = 450;
-const REF_BALL_RADIUS = 16;
-const REF_PEG_RADIUS = 2;
-const REF_BOX_HEIGHT = 40;
-const REF_TOP_MARGIN = 90;
-const REF_BOTTOM_MARGIN = 30;
-const REF_FONT_VALUE = 20;
-const REF_FONT_COUNT = 14;
-const REF_WALL_THICKNESS_MULT = 2.0;
+// ── Default settings (exported for use in settings panel) ──
+export const DEFAULT_SETTINGS = {
+  refWidth: 450,
+  ballRadius: 16,
+  pegRadius: 2,
+  boxHeight: 40,
+  topMargin: 90,
+  bottomMargin: 30,
+  fontValue: 20,
+  fontCount: 14,
+  wallThicknessMult: 2.0,
+  pegsPerRow: 13,
+  pegRows: 19,
+  gravity: 1.2,
+  restitution: 0.7,
+  friction: 0,
+  density: 5.05,
+  boxValues: [0, 1, 3, 7, 14, 20, 24, 28, 31, 33, 34, 35],
+  wallGap: 1.0,
+};
 
-// ── Fixed grid dimensions (same on every screen) ──
-const PEGS_PER_ROW = 13;
-const PEG_ROWS = 19;
-const REF_SPACING = (REF_WIDTH - 2 * REF_BALL_RADIUS) / (PEGS_PER_ROW - 1);
-const REF_HEIGHT = REF_TOP_MARGIN + (PEG_ROWS - 1) * REF_SPACING + REF_BOX_HEIGHT + REF_BOTTOM_MARGIN;
+export type GameSettings = typeof DEFAULT_SETTINGS;
 
-const gravity = 1.2;
-const restitution = 0.7;
-const friction = 0;
-const density = 5.05;
 const ACCENT_COLOR = "#059669";
 
-const DEFAULT_BOX_VALUES = [
-  0, 1, 3, 7, 14, 20, 24, 28, 31, 33, 34, 35
-];
+// ── Helper functions (parameterized) ──
+function computeDerived(s: GameSettings) {
+  const spacing = (s.refWidth - 2 * s.ballRadius) / (s.pegsPerRow - 1);
+  const height = s.topMargin + (s.pegRows - 1) * spacing + s.boxHeight + s.bottomMargin;
+  const wallThickness = s.ballRadius * s.wallThicknessMult;
+  const lastRowY = s.topMargin + (s.pegRows - 1) * spacing;
+  return { spacing, height, wallThickness, lastRowY };
+}
 
-// ── Precompute FIXED reference layout (never changes) ──
-const REF_BALL = REF_BALL_RADIUS;
-const REF_WALL_THICKNESS = REF_BALL * REF_WALL_THICKNESS_MULT;
-const REF_LAST_ROW_Y = REF_TOP_MARGIN + (PEG_ROWS - 1) * REF_SPACING;
-
-function getRefWallGap(wallGap: number) {
-  const gap = REF_BALL * wallGap;
-  const leftmostPegX = REF_BALL;
-  const rightmostPegX = REF_BALL + (PEGS_PER_ROW - 1) * REF_SPACING;
-  const leftWallX = leftmostPegX - gap - REF_WALL_THICKNESS / 2;
-  const rightWallX = rightmostPegX + gap + REF_WALL_THICKNESS / 2;
+function getWallGap(s: GameSettings, derived: ReturnType<typeof computeDerived>) {
+  const gap = s.ballRadius * s.wallGap;
+  const leftmostPegX = s.ballRadius;
+  const rightmostPegX = s.ballRadius + (s.pegsPerRow - 1) * derived.spacing;
+  const leftWallX = leftmostPegX - gap - derived.wallThickness / 2;
+  const rightWallX = rightmostPegX + gap + derived.wallThickness / 2;
   return { leftWallX, rightWallX };
 }
 
-function getRefPegXY(row: number, col: number) {
-  const pegOffsetX = row % 2 === 1 ? REF_SPACING / 2 : 0;
+function getPegXY(s: GameSettings, derived: ReturnType<typeof computeDerived>, row: number, col: number) {
+  const pegOffsetX = row % 2 === 1 ? derived.spacing / 2 : 0;
   return {
-    x: REF_BALL + col * REF_SPACING + pegOffsetX,
-    y: REF_TOP_MARGIN + row * REF_SPACING,
+    x: s.ballRadius + col * derived.spacing + pegOffsetX,
+    y: s.topMargin + row * derived.spacing,
   };
 }
 
-function getRefCollectorBoxes(wallGap: number) {
-  const bottomPegXs = Array.from({ length: PEGS_PER_ROW }, (_, i) => {
-    const pegOffsetX = (PEG_ROWS - 1) % 2 === 1 ? REF_SPACING / 2 : 0;
-    return REF_BALL + i * REF_SPACING + pegOffsetX;
+function getCollectorBoxes(s: GameSettings, derived: ReturnType<typeof computeDerived>) {
+  const bottomPegXs = Array.from({ length: s.pegsPerRow }, (_, i) => {
+    const pegOffsetX = (s.pegRows - 1) % 2 === 1 ? derived.spacing / 2 : 0;
+    return s.ballRadius + i * derived.spacing + pegOffsetX;
   });
   const count = bottomPegXs.length - 1;
   const edges = Array.from({ length: count }, (_, i) => {
@@ -106,11 +109,20 @@ export interface PlinkoSimpleRef {
 
 interface PlinkoSimpleProps {
   onGameEnd?: (totalScore: number, breakdown: string) => void;
-  wallGap?: number;
+  settings?: Partial<GameSettings>;
 }
 
 const PlinkoSimple = forwardRef<PlinkoSimpleRef, PlinkoSimpleProps>(
-  ({ onGameEnd, wallGap = 1.0 }, ref) => {
+  ({ onGameEnd, settings: settingsOverride }, ref) => {
+    // Merge settings with defaults
+    const s = useMemo<GameSettings>(() => ({
+      ...DEFAULT_SETTINGS,
+      ...settingsOverride,
+      boxValues: settingsOverride?.boxValues ?? DEFAULT_SETTINGS.boxValues,
+    }), [settingsOverride]);
+
+    const derived = useMemo(() => computeDerived(s), [s]);
+
     const containerRef = useRef<HTMLDivElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const engineRef = useRef<Matter.Engine | null>(null);
@@ -121,15 +133,17 @@ const PlinkoSimple = forwardRef<PlinkoSimpleRef, PlinkoSimpleProps>(
     const expectedBallsRef = useRef(0);
     const landedBallsRef = useRef(0);
     const onGameEndRef = useRef(onGameEnd);
-    // Render info (changes with screen size, NOT physics)
+    const settingsRef = useRef(s);
+    const derivedRef = useRef(derived);
     const renderRef = useRef<{ scale: number; offsetX: number; offsetY: number; W: number; H: number }>({
-      scale: 1, offsetX: 0, offsetY: 0, W: REF_WIDTH, H: REF_HEIGHT,
+      scale: 1, offsetX: 0, offsetY: 0, W: s.refWidth, H: derived.height,
     });
 
     const [dimensions, setDimensions] = useState<{ w: number; h: number } | null>(null);
 
     useEffect(() => { onGameEndRef.current = onGameEnd; }, [onGameEnd]);
     useEffect(() => { previewPositionsRef.current = previewPositions; }, [previewPositions]);
+    useEffect(() => { settingsRef.current = s; derivedRef.current = derived; }, [s, derived]);
 
     // Measure container
     useEffect(() => {
@@ -145,40 +159,40 @@ const PlinkoSimple = forwardRef<PlinkoSimpleRef, PlinkoSimpleProps>(
       return () => ro.disconnect();
     }, []);
 
-    // Update render transform when dimensions change (NO physics rebuild)
+    // Update render transform when dimensions change
     useEffect(() => {
       if (!dimensions) return;
       const { w: W, h: H } = dimensions;
-      const scale = Math.min(W / REF_WIDTH, H / REF_HEIGHT);
-      const boardW = REF_WIDTH * scale;
-      const boardH = REF_HEIGHT * scale;
+      const scale = Math.min(W / s.refWidth, H / derived.height);
+      const boardW = s.refWidth * scale;
+      const boardH = derived.height * scale;
       renderRef.current = {
         scale,
         offsetX: (W - boardW) / 2,
         offsetY: (H - boardH) / 2,
         W, H,
       };
-    }, [dimensions]);
+    }, [dimensions, s.refWidth, derived.height]);
 
-    // Build physics world ONCE (at reference coords), rebuild only when wallGap changes
+    // Build physics world, rebuild when settings change
     useEffect(() => {
-      const { leftWallX, rightWallX } = getRefWallGap(wallGap);
-      const { edges: collectorBoxEdges, count: COLLECTOR_BOX_COUNT } = getRefCollectorBoxes(wallGap);
+      const walls = getWallGap(s, derived);
+      const { edges: collectorBoxEdges, count: COLLECTOR_BOX_COUNT } = getCollectorBoxes(s, derived);
 
       const MWorld = Matter.World;
       const Bodies = Matter.Bodies;
       const engine = Matter.Engine.create();
-      engine.gravity.y = gravity;
+      engine.gravity.y = s.gravity;
       engineRef.current = engine;
       const world = engine.world;
       ballsMetaRef.current = [];
 
-      // Pegs (reference coords)
-      for (let row = 0; row < PEG_ROWS; row++) {
-        for (let col = 0; col < PEGS_PER_ROW; col++) {
-          const { x, y } = getRefPegXY(row, col);
-          if (x >= leftWallX + REF_BALL && x <= rightWallX - REF_BALL) {
-            MWorld.add(world, Bodies.circle(x, y, REF_PEG_RADIUS, {
+      // Pegs
+      for (let row = 0; row < s.pegRows; row++) {
+        for (let col = 0; col < s.pegsPerRow; col++) {
+          const { x, y } = getPegXY(s, derived, row, col);
+          if (x >= walls.leftWallX + s.ballRadius && x <= walls.rightWallX - s.ballRadius) {
+            MWorld.add(world, Bodies.circle(x, y, s.pegRadius, {
               isStatic: true, restitution: 0.9, friction: 0.01,
             }));
           }
@@ -187,8 +201,8 @@ const PlinkoSimple = forwardRef<PlinkoSimpleRef, PlinkoSimpleProps>(
 
       // Side walls
       MWorld.add(world, [
-        Bodies.rectangle(leftWallX, REF_HEIGHT / 2, REF_WALL_THICKNESS, REF_HEIGHT, { isStatic: true }),
-        Bodies.rectangle(rightWallX, REF_HEIGHT / 2, REF_WALL_THICKNESS, REF_HEIGHT, { isStatic: true }),
+        Bodies.rectangle(walls.leftWallX, derived.height / 2, derived.wallThickness, derived.height, { isStatic: true }),
+        Bodies.rectangle(walls.rightWallX, derived.height / 2, derived.wallThickness, derived.height, { isStatic: true }),
       ]);
 
       // Collector box walls + bottoms
@@ -196,32 +210,34 @@ const PlinkoSimple = forwardRef<PlinkoSimpleRef, PlinkoSimpleProps>(
       for (let i = 0; i < COLLECTOR_BOX_COUNT; i++) {
         const { left, right, width } = collectorBoxEdges[i];
         MWorld.add(world, [
-          Bodies.rectangle(left, REF_LAST_ROW_Y + REF_BOX_HEIGHT / 2, sideWallW, REF_BOX_HEIGHT, { isStatic: true }),
-          Bodies.rectangle(right, REF_LAST_ROW_Y + REF_BOX_HEIGHT / 2, sideWallW, REF_BOX_HEIGHT, { isStatic: true }),
-          Bodies.rectangle((left + right) / 2, REF_LAST_ROW_Y + REF_BOX_HEIGHT, width, sideWallW, { isStatic: true }),
+          Bodies.rectangle(left, derived.lastRowY + s.boxHeight / 2, sideWallW, s.boxHeight, { isStatic: true }),
+          Bodies.rectangle(right, derived.lastRowY + s.boxHeight / 2, sideWallW, s.boxHeight, { isStatic: true }),
+          Bodies.rectangle((left + right) / 2, derived.lastRowY + s.boxHeight, width, sideWallW, { isStatic: true }),
         ]);
       }
       MWorld.add(world, [
-        Bodies.rectangle(collectorBoxEdges[0].left, REF_LAST_ROW_Y + REF_BOX_HEIGHT / 2, sideWallW, REF_BOX_HEIGHT, { isStatic: true }),
-        Bodies.rectangle(collectorBoxEdges[COLLECTOR_BOX_COUNT - 1].right, REF_LAST_ROW_Y + REF_BOX_HEIGHT / 2, sideWallW, REF_BOX_HEIGHT, { isStatic: true }),
+        Bodies.rectangle(collectorBoxEdges[0].left, derived.lastRowY + s.boxHeight / 2, sideWallW, s.boxHeight, { isStatic: true }),
+        Bodies.rectangle(collectorBoxEdges[COLLECTOR_BOX_COUNT - 1].right, derived.lastRowY + s.boxHeight / 2, sideWallW, s.boxHeight, { isStatic: true }),
       ]);
 
-      // ── Ball landing detection (all in reference coords) ──
+      // Ball landing detection
       Matter.Events.on(engine, "beforeUpdate", () => {
+        const cs = settingsRef.current;
+        const cd = derivedRef.current;
         ballsMetaRef.current.forEach((meta) => {
           if (meta.removed) return;
           const vel = Math.sqrt(meta.body.velocity.x ** 2 + meta.body.velocity.y ** 2);
           for (let i = 0; i < COLLECTOR_BOX_COUNT; i++) {
             const { left, right } = collectorBoxEdges[i];
-            const top = REF_LAST_ROW_Y;
-            const bottom = REF_LAST_ROW_Y + REF_BOX_HEIGHT;
+            const top = cd.lastRowY;
+            const bottom = cd.lastRowY + cs.boxHeight;
             const isLastBox = i === COLLECTOR_BOX_COUNT - 1;
             const inX = isLastBox
               ? meta.body.position.x >= left && meta.body.position.x <= right
               : meta.body.position.x >= left && meta.body.position.x < right;
             const y = meta.body.position.y;
             const isInBox = inX && y >= top && y <= bottom;
-            const isDeepInBox = inX && y >= top + REF_BOX_HEIGHT * 0.45 && y <= bottom;
+            const isDeepInBox = inX && y >= top + cs.boxHeight * 0.45 && y <= bottom;
 
             if (isInBox && vel < 0.6) {
               meta.isWinning = true;
@@ -239,7 +255,7 @@ const PlinkoSimple = forwardRef<PlinkoSimpleRef, PlinkoSimpleProps>(
                 const values: number[] = [];
                 ballsMetaRef.current.forEach((m) => {
                   if (m.isWinning && typeof m.sinkIndex === "number") {
-                    const val = DEFAULT_BOX_VALUES[m.sinkIndex] || 0;
+                    const val = cs.boxValues[m.sinkIndex] || 0;
                     sum += val;
                     values.push(val);
                   }
@@ -251,7 +267,7 @@ const PlinkoSimple = forwardRef<PlinkoSimpleRef, PlinkoSimpleProps>(
               }
             }
           }
-          if (meta.body.position.y > REF_LAST_ROW_Y + REF_BOX_HEIGHT + 50 && !meta.isWinning) {
+          if (meta.body.position.y > cd.lastRowY + cs.boxHeight + 50 && !meta.isWinning) {
             Matter.World.remove(engine.world, meta.body);
             meta.removed = true;
           }
@@ -263,7 +279,7 @@ const PlinkoSimple = forwardRef<PlinkoSimpleRef, PlinkoSimpleProps>(
               const values: number[] = [];
               ballsMetaRef.current.forEach((m) => {
                 if (m.isWinning && typeof m.sinkIndex === "number") {
-                  const val = DEFAULT_BOX_VALUES[m.sinkIndex] || 0;
+                  const val = cs.boxValues[m.sinkIndex] || 0;
                   sum += val;
                   values.push(val);
                 }
@@ -281,13 +297,13 @@ const PlinkoSimple = forwardRef<PlinkoSimpleRef, PlinkoSimpleProps>(
         try { Matter.Engine.clear(engine); } catch {}
         engineRef.current = null;
       };
-    }, [wallGap]);
+    }, [s, derived]);
 
-    // ── Draw loop (separate from physics, uses renderRef for scaling) ──
+    // ── Draw loop ──
     useEffect(() => {
       if (!dimensions) return;
-      const { leftWallX, rightWallX } = getRefWallGap(wallGap);
-      const { edges: collectorBoxEdges, count: COLLECTOR_BOX_COUNT } = getRefCollectorBoxes(wallGap);
+      const walls = getWallGap(s, derived);
+      const { edges: collectorBoxEdges, count: COLLECTOR_BOX_COUNT } = getCollectorBoxes(s, derived);
 
       let anim: number;
       function draw() {
@@ -306,18 +322,18 @@ const PlinkoSimple = forwardRef<PlinkoSimpleRef, PlinkoSimpleProps>(
         ctx.translate(offsetX, offsetY);
         ctx.scale(scale, scale);
 
-        // Debug: side walls
+        // Side walls
         ctx.fillStyle = "rgba(255,0,0,0.8)";
-        ctx.fillRect(leftWallX - REF_WALL_THICKNESS / 2, 0, REF_WALL_THICKNESS, REF_HEIGHT);
-        ctx.fillRect(rightWallX - REF_WALL_THICKNESS / 2, 0, REF_WALL_THICKNESS, REF_HEIGHT);
+        ctx.fillRect(walls.leftWallX - derived.wallThickness / 2, 0, derived.wallThickness, derived.height);
+        ctx.fillRect(walls.rightWallX - derived.wallThickness / 2, 0, derived.wallThickness, derived.height);
 
         // Pegs
-        for (let row = 0; row < PEG_ROWS; row++) {
-          for (let col = 0; col < PEGS_PER_ROW; col++) {
-            const { x, y } = getRefPegXY(row, col);
-            if (x >= leftWallX + REF_BALL && x <= rightWallX - REF_BALL) {
+        for (let row = 0; row < s.pegRows; row++) {
+          for (let col = 0; col < s.pegsPerRow; col++) {
+            const { x, y } = getPegXY(s, derived, row, col);
+            if (x >= walls.leftWallX + s.ballRadius && x <= walls.rightWallX - s.ballRadius) {
               ctx.beginPath();
-              const r = row === PEG_ROWS - 1 ? REF_PEG_RADIUS * 0.5 : REF_PEG_RADIUS;
+              const r = row === s.pegRows - 1 ? s.pegRadius * 0.5 : s.pegRadius;
               ctx.arc(x, y, r, 0, Math.PI * 2);
               ctx.fillStyle = "#fff";
               ctx.fill();
@@ -334,19 +350,19 @@ const PlinkoSimple = forwardRef<PlinkoSimpleRef, PlinkoSimpleProps>(
         });
 
         // Collector boxes
-        const fontValue = `bold ${REF_FONT_VALUE}px Inter, sans-serif`;
-        const fontCount = `bold ${REF_FONT_COUNT}px Inter, sans-serif`;
+        const fontValue = `bold ${s.fontValue}px Inter, sans-serif`;
+        const fontCount = `bold ${s.fontCount}px Inter, sans-serif`;
         for (let i = 0; i < COLLECTOR_BOX_COUNT; i++) {
           const { left, right, width, center } = collectorBoxEdges[i];
-          const top = REF_LAST_ROW_Y;
+          const top = derived.lastRowY;
           ctx.fillStyle = "#222";
-          ctx.fillRect(left, top, width, REF_BOX_HEIGHT);
+          ctx.fillRect(left, top, width, s.boxHeight);
           ctx.strokeStyle = ACCENT_COLOR;
           ctx.lineWidth = 2;
           ctx.beginPath();
           ctx.moveTo(left, top);
-          ctx.lineTo(left, top + REF_BOX_HEIGHT);
-          ctx.lineTo(right, top + REF_BOX_HEIGHT);
+          ctx.lineTo(left, top + s.boxHeight);
+          ctx.lineTo(right, top + s.boxHeight);
           ctx.lineTo(right, top);
           ctx.stroke();
 
@@ -354,9 +370,9 @@ const PlinkoSimple = forwardRef<PlinkoSimpleRef, PlinkoSimpleProps>(
           ctx.textAlign = "center";
           ctx.strokeStyle = "#ffffff";
           ctx.lineWidth = 3;
-          ctx.strokeText(String(DEFAULT_BOX_VALUES[i]), center, top + REF_BOX_HEIGHT + 18);
+          ctx.strokeText(String(s.boxValues[i] ?? 0), center, top + s.boxHeight + 18);
           ctx.fillStyle = ACCENT_COLOR;
-          ctx.fillText(String(DEFAULT_BOX_VALUES[i]), center, top + REF_BOX_HEIGHT + 18);
+          ctx.fillText(String(s.boxValues[i] ?? 0), center, top + s.boxHeight + 18);
 
           if (ballsPerBox[i] > 0) {
             ctx.font = fontCount;
@@ -375,17 +391,17 @@ const PlinkoSimple = forwardRef<PlinkoSimpleRef, PlinkoSimpleProps>(
           ctx.lineWidth = 1.5;
           ctx.setLineDash([2, 3]);
           ctx.beginPath();
-          ctx.moveTo(right, REF_LAST_ROW_Y - 4);
-          ctx.lineTo(right, REF_LAST_ROW_Y + REF_BOX_HEIGHT + 24);
+          ctx.moveTo(right, derived.lastRowY - 4);
+          ctx.lineTo(right, derived.lastRowY + s.boxHeight + 24);
           ctx.stroke();
           ctx.setLineDash([]);
         }
 
-        // Balls with glow (positions from physics are already in ref coords)
+        // Balls with glow
         ballsMetaRef.current.forEach((meta) => {
           if (meta.removed && !meta.isWinning) return;
           const { x, y } = meta.body.position;
-          const nearBottom = y > REF_LAST_ROW_Y - 30;
+          const nearBottom = y > derived.lastRowY - 30;
           if (!nearBottom) {
             const glowLayers = [
               { r: 50, a: 0.04 }, { r: 36, a: 0.07 },
@@ -395,14 +411,14 @@ const PlinkoSimple = forwardRef<PlinkoSimpleRef, PlinkoSimpleProps>(
             ctx.fillStyle = ACCENT_COLOR;
             for (const layer of glowLayers) {
               ctx.beginPath();
-              ctx.arc(x, y, REF_BALL + layer.r, 0, Math.PI * 2);
+              ctx.arc(x, y, s.ballRadius + layer.r, 0, Math.PI * 2);
               ctx.globalAlpha = layer.a;
               ctx.fill();
             }
             ctx.globalAlpha = 1;
           }
           ctx.beginPath();
-          ctx.arc(x, y, REF_BALL, 0, Math.PI * 2);
+          ctx.arc(x, y, s.ballRadius, 0, Math.PI * 2);
           ctx.fillStyle = ACCENT_COLOR;
           ctx.globalAlpha = 1;
           ctx.fill();
@@ -411,13 +427,13 @@ const PlinkoSimple = forwardRef<PlinkoSimpleRef, PlinkoSimpleProps>(
           ctx.stroke();
         });
 
-        // Preview balls (positions are in ref coords)
-        const previewY = REF_TOP_MARGIN * 0.55;
+        // Preview balls
+        const previewY = s.topMargin * 0.55;
         const previews = previewPositionsRef.current;
         if (previews.length > 0) {
           previews.forEach((px) => {
             ctx.beginPath();
-            ctx.arc(px, previewY, REF_BALL, 0, Math.PI * 2);
+            ctx.arc(px, previewY, s.ballRadius, 0, Math.PI * 2);
             ctx.fillStyle = ACCENT_COLOR;
             ctx.globalAlpha = 1;
             ctx.fill();
@@ -425,7 +441,7 @@ const PlinkoSimple = forwardRef<PlinkoSimpleRef, PlinkoSimpleProps>(
             ctx.lineWidth = 2;
             ctx.stroke();
             ctx.beginPath();
-            ctx.arc(px, previewY, REF_BALL + 4, 0, Math.PI * 2);
+            ctx.arc(px, previewY, s.ballRadius + 4, 0, Math.PI * 2);
             ctx.strokeStyle = ACCENT_COLOR;
             ctx.lineWidth = 1.5;
             ctx.globalAlpha = 0.4;
@@ -440,14 +456,13 @@ const PlinkoSimple = forwardRef<PlinkoSimpleRef, PlinkoSimpleProps>(
       draw();
 
       return () => { if (anim) cancelAnimationFrame(anim); };
-    }, [dimensions, wallGap]);
-
-    // All positions below are in REFERENCE coords (fixed, same on every screen)
+    }, [dimensions, s, derived]);
 
     function dropBall(x: number) {
       if (!engineRef.current) return;
-      const ball = Matter.Bodies.circle(x, REF_TOP_MARGIN * 0.55, REF_BALL, {
-        restitution, friction, density,
+      const cs = settingsRef.current;
+      const ball = Matter.Bodies.circle(x, cs.topMargin * 0.55, cs.ballRadius, {
+        restitution: cs.restitution, friction: cs.friction, density: cs.density,
         collisionFilter: { group: -1 },
       });
       const meta: BallMeta = {
@@ -469,7 +484,6 @@ const PlinkoSimple = forwardRef<PlinkoSimpleRef, PlinkoSimpleProps>(
       landedBallsRef.current = 0;
     }
 
-    // Test mode refs
     const testMappingRef = useRef<{ [dropX: number]: number }>({});
     const testCallbackRef = useRef<((mapping: { [dropX: number]: number }) => void) | null>(null);
     const testModeRef = useRef(false);
@@ -499,29 +513,36 @@ const PlinkoSimple = forwardRef<PlinkoSimpleRef, PlinkoSimpleProps>(
       },
       clearBoard: () => { clearBoard(); setPreviewPositions([]); },
       setPreviewPositions: (positions: number[]) => { setPreviewPositions(positions); },
-      // All ranges/positions in REFERENCE coords
       getPlayableRange: () => {
-        const { leftWallX, rightWallX } = getRefWallGap(wallGap);
+        const cs = settingsRef.current;
+        const cd = derivedRef.current;
+        const walls = getWallGap(cs, cd);
         return {
-          min: leftWallX + REF_WALL_THICKNESS + REF_BALL,
-          max: rightWallX - REF_WALL_THICKNESS - REF_BALL,
+          min: walls.leftWallX + cd.wallThickness + cs.ballRadius,
+          max: walls.rightWallX - cd.wallThickness - cs.ballRadius,
         };
       },
       pixelToNorm: (refX: number) => {
-        const { leftWallX, rightWallX } = getRefWallGap(wallGap);
-        const min = leftWallX + REF_WALL_THICKNESS + REF_BALL;
-        const max = rightWallX - REF_WALL_THICKNESS - REF_BALL;
+        const cs = settingsRef.current;
+        const cd = derivedRef.current;
+        const walls = getWallGap(cs, cd);
+        const min = walls.leftWallX + cd.wallThickness + cs.ballRadius;
+        const max = walls.rightWallX - cd.wallThickness - cs.ballRadius;
         return (refX - min) / (max - min);
       },
       normToPixel: (norm: number) => {
-        const { leftWallX, rightWallX } = getRefWallGap(wallGap);
-        const min = leftWallX + REF_WALL_THICKNESS + REF_BALL;
-        const max = rightWallX - REF_WALL_THICKNESS - REF_BALL;
+        const cs = settingsRef.current;
+        const cd = derivedRef.current;
+        const walls = getWallGap(cs, cd);
+        const min = walls.leftWallX + cd.wallThickness + cs.ballRadius;
+        const max = walls.rightWallX - cd.wallThickness - cs.ballRadius;
         return min + norm * (max - min);
       },
-      getBoxValues: () => [...DEFAULT_BOX_VALUES],
+      getBoxValues: () => [...settingsRef.current.boxValues],
       startTestMode: (callbacks) => {
         if (!engineRef.current || testInProgressRef.current) return;
+        const cs = settingsRef.current;
+        const cd = derivedRef.current;
 
         const callbackSet = typeof callbacks === "function"
           ? { onComplete: callbacks }
@@ -533,8 +554,8 @@ const PlinkoSimple = forwardRef<PlinkoSimpleRef, PlinkoSimpleProps>(
         const MAX_ATTEMPTS_PER_DROP = 3;
         const ROUND_TIMEOUT_MS = 20000;
         const DROP_INTERVAL_MS = 3;
-        const { leftWallX, rightWallX } = getRefWallGap(wallGap);
-        const { edges: collectorBoxEdges, count: COLLECTOR_BOX_COUNT } = getRefCollectorBoxes(wallGap);
+        const walls = getWallGap(cs, cd);
+        const { edges: collectorBoxEdges, count: COLLECTOR_BOX_COUNT } = getCollectorBoxes(cs, cd);
 
         const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -546,8 +567,8 @@ const PlinkoSimple = forwardRef<PlinkoSimpleRef, PlinkoSimpleProps>(
           testModeRef.current = true;
           testInProgressRef.current = true;
 
-          const minX = Math.ceil(leftWallX + REF_WALL_THICKNESS + REF_BALL);
-          const maxX = Math.floor(rightWallX - REF_WALL_THICKNESS - REF_BALL);
+          const minX = Math.ceil(walls.leftWallX + cd.wallThickness + cs.ballRadius);
+          const maxX = Math.floor(walls.rightWallX - cd.wallThickness - cs.ballRadius);
           const dropXs = Array.from({ length: maxX - minX + 1 }, (_, i) => minX + i);
           const total = dropXs.length;
 
@@ -593,8 +614,8 @@ const PlinkoSimple = forwardRef<PlinkoSimpleRef, PlinkoSimpleProps>(
                 const boxIndex = meta.sinkIndex;
                 const box = collectorBoxEdges[boxIndex];
                 if (!box) return false;
-                const top = REF_LAST_ROW_Y;
-                const bottom = REF_LAST_ROW_Y + REF_BOX_HEIGHT;
+                const top = cd.lastRowY;
+                const bottom = cd.lastRowY + cs.boxHeight;
                 const isLastBox = boxIndex === COLLECTOR_BOX_COUNT - 1;
                 const x = meta.body.position.x;
                 const y = meta.body.position.y;

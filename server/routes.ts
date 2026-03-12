@@ -95,6 +95,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get game settings
+  app.get("/api/admin/settings", async (_req, res) => {
+    try {
+      const settings = await storage.getSettings();
+      res.json(settings || {});
+    } catch (error) {
+      console.error("Error fetching settings:", error);
+      res.status(500).json({ error: "Failed to fetch settings" });
+    }
+  });
+
+  // Save game settings
+  app.put("/api/admin/settings", async (req, res) => {
+    try {
+      const settings = req.body;
+      if (!settings || typeof settings !== "object") {
+        return res.status(400).json({ error: "Settings must be an object" });
+      }
+      await storage.saveSettings(settings);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error saving settings:", error);
+      res.status(500).json({ error: "Failed to save settings" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

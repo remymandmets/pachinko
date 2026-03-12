@@ -1,13 +1,11 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
-import PlinkoSimple, { PlinkoSimpleRef } from "@/components/PlinkoSimple";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import PlinkoSimple, { PlinkoSimpleRef, DEFAULT_SETTINGS, GameSettings } from "@/components/PlinkoSimple";
 
-// Generate fallback arrangements using ref-coord range
 function generateArrangements(min: number, max: number): number[][] {
   const range = max - min;
   const third = range / 3;
   const mid = (min + max) / 2;
   const arrangements: number[][] = [];
-
   for (let i = 0; i < 8; i++) {
     const offset = (range / 8) * i;
     arrangements.push([
@@ -16,16 +14,57 @@ function generateArrangements(min: number, max: number): number[][] {
       min + ((offset + 2 * third) % range),
     ]);
   }
-
   arrangements.push([min + range * 0.1, min + range * 0.15, min + range * 0.2]);
   arrangements.push([mid - range * 0.05, mid, mid + range * 0.05]);
   arrangements.push([max - range * 0.2, max - range * 0.15, max - range * 0.1]);
   arrangements.push([min + 10, mid, max - 10]);
   arrangements.push([min + range * 0.1, mid - range * 0.1, max - range * 0.1]);
   arrangements.push([min + range * 0.15, mid + range * 0.15, max - range * 0.15]);
-
   return arrangements;
 }
+
+// ── Settings field definitions ──
+const SETTING_GROUPS: Array<{
+  label: string;
+  fields: Array<{ key: keyof GameSettings; label: string; min?: number; max?: number; step?: number }>;
+}> = [
+  {
+    label: "Mängu reeglid",
+    fields: [
+      { key: "wallGap", label: "Sein", min: 0, max: 3, step: 0.1 },
+    ],
+  },
+  {
+    label: "Füüsika",
+    fields: [
+      { key: "gravity", label: "Gravitatsioon", min: 0, max: 5, step: 0.1 },
+      { key: "restitution", label: "Põrkavus", min: 0, max: 1, step: 0.05 },
+      { key: "friction", label: "Hõõrdumine", min: 0, max: 1, step: 0.01 },
+      { key: "density", label: "Tihedus", min: 0.1, max: 20, step: 0.05 },
+    ],
+  },
+  {
+    label: "Paigutus",
+    fields: [
+      { key: "refWidth", label: "Laius", min: 200, max: 800, step: 10 },
+      { key: "pegsPerRow", label: "Pegid reas", min: 5, max: 25, step: 1 },
+      { key: "pegRows", label: "Pegi ridu", min: 5, max: 40, step: 1 },
+      { key: "ballRadius", label: "Palli raadius", min: 4, max: 40, step: 1 },
+      { key: "pegRadius", label: "Pegi raadius", min: 1, max: 10, step: 0.5 },
+      { key: "boxHeight", label: "Kasti kõrgus", min: 10, max: 100, step: 5 },
+      { key: "topMargin", label: "Ülemine veeris", min: 20, max: 200, step: 5 },
+      { key: "bottomMargin", label: "Alumine veeris", min: 0, max: 100, step: 5 },
+      { key: "wallThicknessMult", label: "Seina paksus", min: 0.5, max: 5, step: 0.5 },
+    ],
+  },
+  {
+    label: "Font",
+    fields: [
+      { key: "fontValue", label: "Väärtuse font", min: 8, max: 40, step: 1 },
+      { key: "fontCount", label: "Loenduse font", min: 8, max: 30, step: 1 },
+    ],
+  },
+];
 
 export default function SimpleGame() {
   const [arrangementIndex, setArrangementIndex] = useState(0);
@@ -42,37 +81,41 @@ export default function SimpleGame() {
   const [testProgress, setTestProgress] = useState({ processed: 0, total: 0, mapped: 0, retryCount: 0 });
   const [constraintError, setConstraintError] = useState<string | null>(null);
   const [testError, setTestError] = useState<string | null>(null);
-  const [wallGap, setWallGap] = useState(1.0);
+
+  // Settings state (all game settings including wallGap)
+  const [gameSettings, setGameSettings] = useState<GameSettings>({ ...DEFAULT_SETTINGS });
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
+
   const plinkoRef = useRef<PlinkoSimpleRef>(null);
   const initDone = useRef(false);
   const totalsLoadedRef = useRef(false);
+  const settingsPageRef = useRef<HTMLDivElement>(null);
 
-  // Generate smart arrangements using mapping + constraints
-  // All positions are in FIXED reference coordinates (same on every screen)
+  // Settings object for PlinkoSimple (excludes wallGap since it's part of settings now)
+  const plinkoSettings = useMemo(() => gameSettings, [gameSettings]);
+
+  const updateSetting = useCallback((key: keyof GameSettings, value: number) => {
+    setGameSettings(prev => ({ ...prev, [key]: value }));
+  }, []);
+
+  // Generate smart arrangements
   const generateSmartArrangements = useCallback((
     min: number, max: number, mapping: { [dropX: number]: number },
     target: number | null, avoid: number | null
   ): number[][] => {
     setConstraintError(null);
-
     const boxValues = plinkoRef.current?.getBoxValues();
-    if (!boxValues) {
-      return generateArrangements(min, max);
-    }
+    if (!boxValues) return generateArrangements(min, max);
 
     const boxCount = boxValues.length;
     const validMapping: { [dropX: number]: number } = {};
     for (const [key, val] of Object.entries(mapping)) {
-      if (val >= 1 && val <= boxCount) {
-        validMapping[Number(key)] = val;
-      }
+      if (val >= 1 && val <= boxCount) validMapping[Number(key)] = val;
     }
     const mappingKeys = Object.keys(validMapping).map(Number);
 
     if (mappingKeys.length === 0) {
-      if (target !== null || avoid !== null) {
-        setConstraintError("Vajuta enne TEST!");
-      }
+      if (target !== null || avoid !== null) setConstraintError("Vajuta enne TEST!");
       return generateArrangements(min, max);
     }
 
@@ -83,51 +126,30 @@ export default function SimpleGame() {
       let targetPossible = false;
       for (const a of allBoxValuesArr) {
         for (const b of allBoxValuesArr) {
-          const c = target - a - b;
-          if (allBoxValuesSet.has(c)) {
-            targetPossible = true;
-            break;
-          }
+          if (allBoxValuesSet.has(target - a - b)) { targetPossible = true; break; }
         }
         if (targetPossible) break;
       }
       if (!targetPossible) {
         const allTotals = new Set<number>();
-        for (const a of allBoxValuesArr) {
-          for (const b of allBoxValuesArr) {
-            for (const c of allBoxValuesArr) {
+        for (const a of allBoxValuesArr)
+          for (const b of allBoxValuesArr)
+            for (const c of allBoxValuesArr)
               allTotals.add(a + b + c);
-            }
-          }
-        }
         const sorted = Array.from(allTotals).sort((a, b) => Math.abs(a - target) - Math.abs(b - target));
-        const closest = sorted.slice(0, 3);
-        setConstraintError(`${target} ei ole võimalik! Lähimad: ${closest.join(', ')}`);
+        setConstraintError(`${target} ei ole võimalik! Lähimad: ${sorted.slice(0, 3).join(', ')}`);
         return generateArrangements(min, max);
       }
     }
 
     const results: number[][] = [];
-    const maxAttempts = 50000;
-    const targetCount = 100;
-
-    for (let attempt = 0; attempt < maxAttempts && results.length < targetCount; attempt++) {
+    for (let attempt = 0; attempt < 50000 && results.length < 100; attempt++) {
       const combo: number[] = [];
-      for (let i = 0; i < 3; i++) {
-        combo.push(mappingKeys[Math.floor(Math.random() * mappingKeys.length)]);
-      }
-      const total = combo.reduce((sum, pos) => {
-        const boxIdx = validMapping[pos];
-        return sum + (boxValues[boxIdx - 1] || 0);
-      }, 0);
-
+      for (let i = 0; i < 3; i++) combo.push(mappingKeys[Math.floor(Math.random() * mappingKeys.length)]);
+      const total = combo.reduce((sum, pos) => sum + (boxValues[(validMapping[pos]) - 1] || 0), 0);
       if (target !== null && total !== target) continue;
       if (avoid !== null && total === avoid) continue;
-
-      const isDuplicate = results.some(existing =>
-        existing.every((v, i) => Math.abs(v - combo[i]) < 5)
-      );
-      if (!isDuplicate) {
+      if (!results.some(existing => existing.every((v, i) => Math.abs(v - combo[i]) < 5))) {
         results.push(combo);
       }
     }
@@ -137,9 +159,6 @@ export default function SimpleGame() {
         const j = Math.floor(Math.random() * (i + 1));
         [results[i], results[j]] = [results[j], results[i]];
       }
-      console.log(`🎯 Generated ${results.length} arrangements`,
-        target !== null ? `(target=${target})` : '',
-        avoid !== null ? `(avoid=${avoid})` : '');
       return results;
     }
 
@@ -147,31 +166,57 @@ export default function SimpleGame() {
     return generateArrangements(min, max);
   }, []);
 
-  // Load saved mapping from database on startup, then generate arrangements
+  // Load settings from DB
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await fetch("/api/admin/settings");
+        if (res.ok) {
+          const data = await res.json();
+          if (data && Object.keys(data).length > 0) {
+            setGameSettings(prev => ({ ...prev, ...data, boxValues: data.boxValues ?? prev.boxValues }));
+          }
+        }
+      } catch {}
+      setSettingsLoaded(true);
+    };
+    load();
+  }, []);
+
+  // Save settings to DB (debounced)
+  useEffect(() => {
+    if (!settingsLoaded) return;
+    const timer = setTimeout(async () => {
+      try {
+        await fetch("/api/admin/settings", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(gameSettings),
+        });
+      } catch {}
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [gameSettings, settingsLoaded]);
+
+  // Load saved mapping + total rules on startup
   useEffect(() => {
     if (initDone.current) return;
     let cancelled = false;
     const init = async () => {
-      // Wait for plinko to be ready
       await new Promise(r => setTimeout(r, 100));
       if (cancelled || !plinkoRef.current) return;
-
-      // Try to load saved mapping
       let mapping: { [dropX: number]: number } = {};
       try {
         const res = await fetch("/api/admin/drop-mapping/latest");
         if (res.ok) {
           const data = await res.json();
           if (data?.mappings?.length > 0) {
-            for (const m of data.mappings) {
-              mapping[m.dropX] = m.boxNumber;
-            }
+            for (const m of data.mappings) mapping[m.dropX] = m.boxNumber;
             setTestMapping(mapping);
             setTestStatus("completed");
           }
         }
       } catch {}
-
       if (cancelled || !plinkoRef.current) return;
       const { min, max } = plinkoRef.current.getPlayableRange();
       const arr = generateSmartArrangements(min, max, mapping, targetTotal, avoidTotal);
@@ -193,10 +238,7 @@ export default function SimpleGame() {
         if (cancelled) return;
         setTargetTotal(typeof rules?.mustTotal === "number" ? rules.mustTotal : null);
         setAvoidTotal(typeof rules?.avoidTotal === "number" ? rules.avoidTotal : null);
-      } catch {
-      } finally {
-        totalsLoadedRef.current = true;
-      }
+      } catch {} finally { totalsLoadedRef.current = true; }
     };
     loadTotalRules();
     return () => { cancelled = true; };
@@ -216,19 +258,15 @@ export default function SimpleGame() {
     return () => clearTimeout(timer);
   }, [targetTotal, avoidTotal]);
 
-  // Regenerate arrangements when target/avoid changes
   useEffect(() => {
     if (!plinkoRef.current || !initDone.current) return;
     const { min, max } = plinkoRef.current.getPlayableRange();
     const arr = generateSmartArrangements(min, max, testMapping, targetTotal, avoidTotal);
     setArrangements(arr);
     setArrangementIndex(0);
-    if (arr.length > 0) {
-      plinkoRef.current.setPreviewPositions(arr[0]);
-    }
+    if (arr.length > 0) plinkoRef.current.setPreviewPositions(arr[0]);
   }, [targetTotal, avoidTotal, testMapping, generateSmartArrangements]);
 
-  // Update preview when arrangement changes
   useEffect(() => {
     if (arrangements.length === 0) return;
     plinkoRef.current?.setPreviewPositions(arrangements[arrangementIndex]);
@@ -263,19 +301,16 @@ export default function SimpleGame() {
     setTestProgress({ processed: 0, total: 0, mapped: 0, retryCount: 0 });
     setShowScore(false);
     plinkoRef.current?.startTestMode({
-      onProgress: (progress) => {
-        setTestProgress(progress);
-      },
+      onProgress: (progress) => setTestProgress(progress),
       onError: (error) => {
         setTestRunning(false);
         setTestStatus("failed");
         const details = error.failedDropXs.length > 0
-          ? ` Ebaõnnestunud X-id: ${error.failedDropXs.slice(0, 10).join(", ")}${error.failedDropXs.length > 10 ? "..." : ""}`
+          ? ` Ebaõnnestunud: ${error.failedDropXs.slice(0, 10).join(", ")}${error.failedDropXs.length > 10 ? "..." : ""}`
           : "";
         setTestError(`${error.message}${details}`);
       },
       onComplete: (mapping) => {
-        // Mapping is in fixed reference coords — same on every screen
         setTestMapping(mapping);
         setTestRunning(false);
         setTestStatus("completed");
@@ -301,283 +336,283 @@ export default function SimpleGame() {
     setArrangementIndex((prev) => (prev + 1) % (arrangements.length || 1));
   }, [arrangements.length]);
 
+  const handleBoxValueChange = useCallback((index: number, value: number) => {
+    setGameSettings(prev => {
+      const newValues = [...prev.boxValues];
+      newValues[index] = value;
+      return { ...prev, boxValues: newValues };
+    });
+  }, []);
+
+  const handleResetSettings = useCallback(() => {
+    setGameSettings({ ...DEFAULT_SETTINGS });
+  }, []);
+
   return (
     <div
       style={{
         width: "100vw",
         height: "100dvh",
-        display: "flex",
-        flexDirection: "column",
-        background: "#0a0a0a",
         overflow: "hidden",
-        position: "relative",
       }}
     >
-      {/* Game area - 80vh, edge to edge */}
       <div
         style={{
           width: "100%",
-          height: "80dvh",
-          position: "relative",
-          flexShrink: 0,
+          height: "100%",
+          overflowY: "auto",
+          scrollSnapType: "y mandatory",
+          WebkitOverflowScrolling: "touch",
         }}
       >
-        <PlinkoSimple ref={plinkoRef} onGameEnd={handleGameEnd} wallGap={wallGap} />
-
-        {/* Floating score overlay */}
-        {showScore && lastScore !== null && (
-          <div
-            style={{
-              position: "absolute",
-              top: "45%",
-              left: "50%",
-              transform: "translate(-50%, -50%)",
-              zIndex: 100,
-              pointerEvents: "none",
-              animation: "scoreAppear 0.4s ease-out forwards",
-            }}
-          >
-            <div
-              style={{
-                width: 160,
-                height: 160,
-                borderRadius: "50%",
-                background: "#059669",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                boxShadow: "0 12px 48px rgba(5, 150, 105, 0.6), 0 0 80px rgba(5, 150, 105, 0.3)",
-                border: "4px solid #fff",
-                padding: 10,
-              }}
-            >
-              <div style={{ fontSize: 12, fontWeight: 600, color: "#fff", marginBottom: 3 }}>
-                Tulemus
-              </div>
-              {lastBreakdown.includes("+") && (
-                <div
-                  style={{
-                    fontSize: 14,
-                    fontWeight: 600,
-                    color: "#fff",
-                    marginBottom: 4,
-                    wordBreak: "break-all",
-                    textAlign: "center",
-                  }}
-                >
-                  {lastBreakdown}
-                </div>
-              )}
-              <div style={{ fontSize: 48, fontWeight: "normal", color: "#fff", lineHeight: 1 }}>
-                {lastScore}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Controls area - 20vh */}
-      <div
-        style={{
-          height: "20dvh",
-          flexShrink: 0,
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "center",
-          gap: "clamp(6px, 1.5vh, 12px)",
-          background: "#111",
-          borderTop: "1px solid #333",
-          padding: "0 16px",
-          boxSizing: "border-box",
-        }}
-      >
-        {/* Error message */}
-        {constraintError && (
-          <div style={{
-            width: "100%",
-            textAlign: "center",
-            color: "#f87171",
-            fontSize: "clamp(10px, 2.5vw, 13px)",
-            fontWeight: 600,
-            padding: "2px 0",
-          }}>
-            {constraintError}
-          </div>
-        )}
-        {/* Row 1: TEST + Peab + Keela + Sein */}
+        {/* ═══ PAGE 1: Game ═══ */}
         <div
           style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "clamp(6px, 2vw, 12px)",
             width: "100%",
+            height: "100dvh",
+            scrollSnapAlign: "start",
+            display: "flex",
+            flexDirection: "column",
+            background: "#0a0a0a",
+            flexShrink: 0,
           }}
         >
-          <button
-            onClick={handleTest}
-            disabled={isPlaying || testRunning}
+          {/* Game area */}
+          <div style={{ flex: 1, position: "relative", minHeight: 0 }}>
+            <PlinkoSimple ref={plinkoRef} onGameEnd={handleGameEnd} settings={plinkoSettings} />
+
+            {showScore && lastScore !== null && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "45%",
+                  left: "50%",
+                  transform: "translate(-50%, -50%)",
+                  zIndex: 100,
+                  pointerEvents: "none",
+                  animation: "scoreAppear 0.4s ease-out forwards",
+                }}
+              >
+                <div
+                  style={{
+                    width: 160, height: 160, borderRadius: "50%",
+                    background: "#059669",
+                    display: "flex", flexDirection: "column",
+                    alignItems: "center", justifyContent: "center",
+                    boxShadow: "0 12px 48px rgba(5, 150, 105, 0.6), 0 0 80px rgba(5, 150, 105, 0.3)",
+                    border: "4px solid #fff", padding: 10,
+                  }}
+                >
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "#fff", marginBottom: 3 }}>Tulemus</div>
+                  {lastBreakdown.includes("+") && (
+                    <div style={{ fontSize: 14, fontWeight: 600, color: "#fff", marginBottom: 4, wordBreak: "break-all", textAlign: "center" }}>
+                      {lastBreakdown}
+                    </div>
+                  )}
+                  <div style={{ fontSize: 48, fontWeight: "normal", color: "#fff", lineHeight: 1 }}>{lastScore}</div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Bottom bar: arrows + play */}
+          <div
             style={{
-              padding: "6px 14px",
-              borderRadius: 8,
-              border: "none",
-              background: testRunning ? "#92400e" : (isPlaying ? "#333" : "#eab308"),
-              color: testRunning ? "#fef3c7" : (isPlaying ? "#666" : "#000"),
-              fontSize: "clamp(12px, 3vw, 15px)",
-              fontWeight: 900,
-              cursor: isPlaying || testRunning ? "not-allowed" : "pointer",
-              transition: "all 0.2s",
+              height: "clamp(60px, 10dvh, 80px)",
               flexShrink: 0,
-              opacity: isPlaying ? 0.4 : 1,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "clamp(8px, 3vw, 16px)",
+              background: "#111",
+              borderTop: "1px solid #333",
+              padding: "0 16px",
             }}
           >
-            {testRunning ? "TESTING..." : "TEST"}
-          </button>
-
-          <div style={{ display: "flex", alignItems: "center", gap: 4, flex: 1 }}>
-            <span style={{ fontSize: "clamp(10px, 2.5vw, 12px)", color: "#4ade80", whiteSpace: "nowrap" }}>Peab=</span>
-            <input
-              type="number"
-              min="0"
-              placeholder="—"
-              value={targetTotal !== null ? targetTotal : ""}
-              onChange={(e) => setTargetTotal(e.target.value === "" ? null : parseInt(e.target.value))}
+            <button
+              onClick={handlePrev}
+              disabled={isPlaying || testRunning}
               style={{
-                width: "clamp(40px, 12vw, 56px)",
-                height: 28,
-                background: "#1a1a1a",
-                border: "1px solid #166534",
-                borderRadius: 6,
-                color: "#4ade80",
-                textAlign: "center",
-                fontSize: "clamp(12px, 3vw, 14px)",
-                outline: "none",
+                width: "clamp(44px, 12vw, 64px)", height: "clamp(44px, 12vw, 64px)",
+                borderRadius: 14, border: "2px solid #333",
+                background: isPlaying || testRunning ? "#1a1a1a" : "#222",
+                color: isPlaying || testRunning ? "#555" : "#fff",
+                fontSize: "clamp(20px, 5vw, 30px)",
+                cursor: isPlaying || testRunning ? "not-allowed" : "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                transition: "all 0.2s", flexShrink: 0,
               }}
-            />
-          </div>
+            >◀</button>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 4, flex: 1 }}>
-            <span style={{ fontSize: "clamp(10px, 2.5vw, 12px)", color: "#f87171", whiteSpace: "nowrap" }}>Keela=</span>
-            <input
-              type="number"
-              min="0"
-              placeholder="—"
-              value={avoidTotal !== null ? avoidTotal : ""}
-              onChange={(e) => setAvoidTotal(e.target.value === "" ? null : parseInt(e.target.value))}
+            <button
+              onClick={handlePlay}
+              disabled={isPlaying || testRunning}
               style={{
-                width: "clamp(40px, 12vw, 56px)",
-                height: 28,
-                background: "#1a1a1a",
-                border: "1px solid #7f1d1d",
-                borderRadius: 6,
-                color: "#f87171",
-                textAlign: "center",
-                fontSize: "clamp(12px, 3vw, 14px)",
-                outline: "none",
+                flex: 1, maxWidth: 220, height: "clamp(44px, 12vw, 64px)",
+                borderRadius: 14, border: "none",
+                background: isPlaying || testRunning ? "#065f46" : "#059669",
+                color: "#fff", fontSize: "clamp(18px, 5vw, 28px)",
+                fontWeight: 900, letterSpacing: 2,
+                cursor: isPlaying || testRunning ? "not-allowed" : "pointer",
+                opacity: isPlaying || testRunning ? 0.5 : 1,
+                transition: "all 0.2s",
               }}
-            />
-          </div>
+            >MÄNGI</button>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            <span style={{ fontSize: "clamp(10px, 2.5vw, 12px)", color: "#facc15", whiteSpace: "nowrap" }}>Sein=</span>
-            <input
-              type="number"
-              min="0"
-              max="3"
-              step="0.1"
-              value={wallGap}
-              onChange={(e) => setWallGap(parseFloat(e.target.value) || 0)}
+            <button
+              onClick={handleNext}
+              disabled={isPlaying || testRunning}
               style={{
-                width: "clamp(40px, 12vw, 56px)",
-                height: 28,
-                background: "#1a1a1a",
-                border: "1px solid #854d0e",
-                borderRadius: 6,
-                color: "#facc15",
-                textAlign: "center",
-                fontSize: "clamp(12px, 3vw, 14px)",
-                outline: "none",
+                width: "clamp(44px, 12vw, 64px)", height: "clamp(44px, 12vw, 64px)",
+                borderRadius: 14, border: "2px solid #333",
+                background: isPlaying || testRunning ? "#1a1a1a" : "#222",
+                color: isPlaying || testRunning ? "#555" : "#fff",
+                fontSize: "clamp(20px, 5vw, 30px)",
+                cursor: isPlaying || testRunning ? "not-allowed" : "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                transition: "all 0.2s", flexShrink: 0,
               }}
-            />
+            >▶</button>
           </div>
         </div>
 
-        {/* Row 2: ◀ MÄNGI ▶ */}
+        {/* ═══ PAGE 2: Settings ═══ */}
         <div
+          ref={settingsPageRef}
           style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "clamp(8px, 3vw, 16px)",
             width: "100%",
+            height: "100dvh",
+            scrollSnapAlign: "start",
+            background: "#0a0a0a",
+            display: "flex",
+            flexDirection: "column",
+            flexShrink: 0,
           }}
         >
-          <button
-            onClick={handlePrev}
-            disabled={isPlaying || testRunning}
+          <div
             style={{
-              width: "clamp(44px, 12vw, 64px)",
-              height: "clamp(44px, 12vw, 64px)",
-              borderRadius: 14,
-              border: "2px solid #333",
-              background: isPlaying || testRunning ? "#1a1a1a" : "#222",
-              color: isPlaying || testRunning ? "#555" : "#fff",
-              fontSize: "clamp(20px, 5vw, 30px)",
-              cursor: isPlaying || testRunning ? "not-allowed" : "pointer",
+              padding: "16px",
+              borderBottom: "1px solid #333",
               display: "flex",
               alignItems: "center",
-              justifyContent: "center",
-              transition: "all 0.2s",
+              justifyContent: "space-between",
               flexShrink: 0,
             }}
           >
-            ◀
-          </button>
+            <h2 style={{ color: "#fff", fontSize: 20, fontWeight: 700, margin: 0 }}>Seaded</h2>
+            <button
+              onClick={handleResetSettings}
+              style={{
+                padding: "6px 12px", borderRadius: 8, border: "1px solid #555",
+                background: "#222", color: "#f87171", fontSize: 13, fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >Reset</button>
+          </div>
 
-          <button
-            onClick={handlePlay}
-            disabled={isPlaying || testRunning}
-            style={{
-              flex: 1,
-              maxWidth: 220,
-              height: "clamp(44px, 12vw, 64px)",
-              borderRadius: 14,
-              border: "none",
-              background: isPlaying || testRunning ? "#065f46" : "#059669",
-              color: "#fff",
-              fontSize: "clamp(18px, 5vw, 28px)",
-              fontWeight: 900,
-              letterSpacing: 2,
-              cursor: isPlaying || testRunning ? "not-allowed" : "pointer",
-              opacity: isPlaying || testRunning ? 0.5 : 1,
-              transition: "all 0.2s",
-              textTransform: "uppercase" as const,
-            }}
-          >
-            MÄNGI
-          </button>
+          <div style={{ flex: 1, overflowY: "auto", padding: "12px 16px", display: "flex", flexDirection: "column", gap: 16 }}>
+            {/* TEST section */}
+            <div style={{ background: "#161616", borderRadius: 12, padding: 12, border: "1px solid #333" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                <button
+                  onClick={handleTest}
+                  disabled={isPlaying || testRunning}
+                  style={{
+                    padding: "8px 20px", borderRadius: 8, border: "none",
+                    background: testRunning ? "#92400e" : (isPlaying ? "#333" : "#eab308"),
+                    color: testRunning ? "#fef3c7" : (isPlaying ? "#666" : "#000"),
+                    fontSize: 15, fontWeight: 900,
+                    cursor: isPlaying || testRunning ? "not-allowed" : "pointer",
+                    opacity: isPlaying ? 0.4 : 1,
+                  }}
+                >
+                  {testRunning ? `TESTING... ${testProgress.mapped}/${testProgress.total}` : "TEST"}
+                </button>
+                <span style={{ fontSize: 12, color: testStatus === "completed" ? "#4ade80" : testStatus === "failed" ? "#f87171" : "#888" }}>
+                  {testStatus === "completed" ? "✓ Valmis" : testStatus === "failed" ? "✗ Ebaõnnestus" : testStatus === "running" ? "Jookseb..." : "Testimata"}
+                </span>
+              </div>
+              {testError && <div style={{ color: "#f87171", fontSize: 12, marginBottom: 6 }}>{testError}</div>}
+              {constraintError && <div style={{ color: "#f87171", fontSize: 12 }}>{constraintError}</div>}
+            </div>
 
-          <button
-            onClick={handleNext}
-            disabled={isPlaying || testRunning}
-            style={{
-              width: "clamp(44px, 12vw, 64px)",
-              height: "clamp(44px, 12vw, 64px)",
-              borderRadius: 14,
-              border: "2px solid #333",
-              background: isPlaying || testRunning ? "#1a1a1a" : "#222",
-              color: isPlaying || testRunning ? "#555" : "#fff",
-              fontSize: "clamp(20px, 5vw, 30px)",
-              cursor: isPlaying || testRunning ? "not-allowed" : "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              transition: "all 0.2s",
-              flexShrink: 0,
-            }}
-          >
-            ▶
-          </button>
+            {/* Peab / Keela */}
+            <div style={{ background: "#161616", borderRadius: 12, padding: 12, border: "1px solid #333" }}>
+              <div style={{ fontSize: 13, color: "#888", fontWeight: 600, marginBottom: 8 }}>Sihtmärk</div>
+              <div style={{ display: "flex", gap: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontSize: 11, color: "#4ade80", display: "block", marginBottom: 4 }}>Peab=</label>
+                  <input
+                    type="number" min="0" placeholder="—"
+                    value={targetTotal !== null ? targetTotal : ""}
+                    onChange={(e) => setTargetTotal(e.target.value === "" ? null : parseInt(e.target.value))}
+                    style={inputStyle("#166534", "#4ade80")}
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontSize: 11, color: "#f87171", display: "block", marginBottom: 4 }}>Keela=</label>
+                  <input
+                    type="number" min="0" placeholder="—"
+                    value={avoidTotal !== null ? avoidTotal : ""}
+                    onChange={(e) => setAvoidTotal(e.target.value === "" ? null : parseInt(e.target.value))}
+                    style={inputStyle("#7f1d1d", "#f87171")}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Box values */}
+            <div style={{ background: "#161616", borderRadius: 12, padding: 12, border: "1px solid #333" }}>
+              <div style={{ fontSize: 13, color: "#888", fontWeight: 600, marginBottom: 8 }}>Kastide väärtused ({gameSettings.boxValues.length} kasti)</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {gameSettings.boxValues.map((val, i) => (
+                  <input
+                    key={i}
+                    type="number"
+                    value={val}
+                    onChange={(e) => handleBoxValueChange(i, parseInt(e.target.value) || 0)}
+                    style={{
+                      width: 48, height: 32,
+                      background: "#1a1a1a", border: "1px solid #059669",
+                      borderRadius: 6, color: "#059669",
+                      textAlign: "center" as const, fontSize: 13, outline: "none",
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* Setting groups */}
+            {SETTING_GROUPS.map((group) => (
+              <div key={group.label} style={{ background: "#161616", borderRadius: 12, padding: 12, border: "1px solid #333" }}>
+                <div style={{ fontSize: 13, color: "#888", fontWeight: 600, marginBottom: 8 }}>{group.label}</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {group.fields.map((field) => (
+                    <div key={field.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <span style={{ fontSize: 13, color: "#ccc" }}>{field.label}</span>
+                      <input
+                        type="number"
+                        min={field.min}
+                        max={field.max}
+                        step={field.step}
+                        value={gameSettings[field.key] as number}
+                        onChange={(e) => updateSetting(field.key, parseFloat(e.target.value) || 0)}
+                        style={{
+                          width: 70, height: 32,
+                          background: "#1a1a1a", border: "1px solid #444",
+                          borderRadius: 6, color: "#fff",
+                          textAlign: "center" as const, fontSize: 13, outline: "none",
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+
+            {/* Spacer at bottom */}
+            <div style={{ height: 20, flexShrink: 0 }} />
+          </div>
         </div>
       </div>
 
@@ -590,4 +625,13 @@ export default function SimpleGame() {
       `}</style>
     </div>
   );
+}
+
+function inputStyle(borderColor: string, textColor: string): React.CSSProperties {
+  return {
+    width: "100%", height: 36,
+    background: "#1a1a1a", border: `1px solid ${borderColor}`,
+    borderRadius: 6, color: textColor,
+    textAlign: "center", fontSize: 15, outline: "none",
+  };
 }

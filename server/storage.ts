@@ -6,6 +6,8 @@ export interface IStorage {
   saveTotalRules(rules: { mustTotal: number | null; avoidTotal: number | null }): Promise<void>;
   saveDropMapping(mappings: Array<{ dropX: number; boxNumber: number }>, testRunId: string): Promise<void>;
   getLatestDropMapping(): Promise<{ mappings: Array<{ dropX: number; boxNumber: number }>; testRun: any } | null>;
+  getSettings(): Promise<Record<string, any> | null>;
+  saveSettings(settings: Record<string, any>): Promise<void>;
 }
 
 class DatabaseStorage implements IStorage {
@@ -91,6 +93,27 @@ class DatabaseStorage implements IStorage {
       })),
       testRun,
     };
+  }
+  async getSettings(): Promise<Record<string, any> | null> {
+    const result = await db.execute(
+      sql`SELECT value FROM game_state WHERE key = 'game_settings'`
+    );
+    if (result.rows.length === 0) return null;
+    try {
+      return JSON.parse((result.rows[0] as any).value);
+    } catch {
+      return null;
+    }
+  }
+
+  async saveSettings(settings: Record<string, any>): Promise<void> {
+    const value = JSON.stringify(settings);
+    await db.execute(
+      sql`INSERT INTO game_state (key, value, updated_at)
+          VALUES ('game_settings', ${value}, NOW())
+          ON CONFLICT (key)
+          DO UPDATE SET value = ${value}, updated_at = NOW()`
+    );
   }
 }
 
