@@ -108,9 +108,6 @@ export default function SimpleGame() {
     if (activePage === 0 && dy > 80 && velocity > 0.3) {
       // Strong swipe up from game → settings
       setActivePage(1);
-    } else if (activePage === 1 && dy < -30) {
-      // Light swipe down from settings → game (easy to go back)
-      setActivePage(0);
     }
   }, [activePage]);
 
@@ -514,7 +511,13 @@ export default function SimpleGame() {
         >
           {/* Header */}
           <div style={{ padding: "8px 12px", borderBottom: "1px solid #333", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
-            <span style={{ color: "#fff", fontSize: 16, fontWeight: 700 }}>Seaded</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <button onClick={() => setActivePage(0)}
+                style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid #444", background: "#222", color: "#fff", fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                ▲
+              </button>
+              <span style={{ color: "#fff", fontSize: 16, fontWeight: 700 }}>Seaded</span>
+            </div>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <button onClick={handleTest} disabled={isPlaying || testRunning}
                 style={{ padding: "4px 14px", borderRadius: 6, border: "none", background: testRunning ? "#92400e" : "#eab308", color: testRunning ? "#fef3c7" : "#000", fontSize: 13, fontWeight: 900, cursor: isPlaying || testRunning ? "not-allowed" : "pointer" }}>
