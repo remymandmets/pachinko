@@ -86,10 +86,32 @@ export default function SimpleGame() {
   const [gameSettings, setGameSettings] = useState<GameSettings>({ ...DEFAULT_SETTINGS });
   const [settingsLoaded, setSettingsLoaded] = useState(false);
 
+  const [activePage, setActivePage] = useState(0);
   const plinkoRef = useRef<PlinkoSimpleRef>(null);
   const initDone = useRef(false);
   const totalsLoadedRef = useRef(false);
   const settingsPageRef = useRef<HTMLDivElement>(null);
+  const touchStartY = useRef(0);
+  const touchStartTime = useRef(0);
+
+  // Swipe handler — needs strong deliberate swipe to switch pages
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    touchStartY.current = e.touches[0].clientY;
+    touchStartTime.current = Date.now();
+  }, []);
+
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    const dy = touchStartY.current - e.changedTouches[0].clientY;
+    const dt = Date.now() - touchStartTime.current;
+    const velocity = Math.abs(dy) / dt; // px/ms
+    const threshold = 80; // minimum px to swipe
+    const minVelocity = 0.3; // minimum speed
+
+    if (Math.abs(dy) > threshold && velocity > minVelocity) {
+      if (dy > 0 && activePage === 0) setActivePage(1); // swipe up → settings
+      if (dy < 0 && activePage === 1) setActivePage(0); // swipe down → game
+    }
+  }, [activePage]);
 
   // Settings object for PlinkoSimple (excludes wallGap since it's part of settings now)
   const plinkoSettings = useMemo(() => gameSettings, [gameSettings]);
@@ -355,15 +377,15 @@ export default function SimpleGame() {
         height: "100dvh",
         overflow: "hidden",
       }}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
     >
       <div
         style={{
           width: "100%",
-          height: "100%",
-          overflowY: "auto",
-          scrollSnapType: "y mandatory",
-          scrollSnapStop: "always" as any,
-          WebkitOverflowScrolling: "touch",
+          height: "200dvh",
+          transform: `translateY(${activePage === 0 ? "0" : "-100dvh"})`,
+          transition: "transform 0.4s cubic-bezier(0.22, 1, 0.36, 1)",
         }}
       >
         {/* ═══ PAGE 1: Game ═══ */}
@@ -371,8 +393,6 @@ export default function SimpleGame() {
           style={{
             width: "100%",
             height: "100dvh",
-            scrollSnapAlign: "start",
-            scrollSnapStop: "always" as any,
             display: "flex",
             flexDirection: "column",
             background: "#0a0a0a",
@@ -484,8 +504,6 @@ export default function SimpleGame() {
           style={{
             width: "100%",
             height: "100dvh",
-            scrollSnapAlign: "start",
-            scrollSnapStop: "always" as any,
             background: "#0a0a0a",
             display: "flex",
             flexDirection: "column",
