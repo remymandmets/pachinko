@@ -206,7 +206,7 @@ const PlinkoSimple = forwardRef<PlinkoSimpleRef, PlinkoSimpleProps>(
       ]);
 
       // Collector box walls + bottoms
-      const sideWallW = 6;
+      const sideWallW = 2;
       for (let i = 0; i < COLLECTOR_BOX_COUNT; i++) {
         const { left, right, width } = collectorBoxEdges[i];
         MWorld.add(world, [
