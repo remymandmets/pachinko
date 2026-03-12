@@ -317,7 +317,7 @@ export default function SimpleGame() {
       <div
         style={{
           width: "100%",
-          height: "80vh",
+          height: "80dvh",
           position: "relative",
           flexShrink: 0,
         }}
@@ -380,7 +380,7 @@ export default function SimpleGame() {
       {/* Controls area - 20vh */}
       <div
         style={{
-          height: "20vh",
+          height: "20dvh",
           flexShrink: 0,
           display: "flex",
           flexDirection: "column",
