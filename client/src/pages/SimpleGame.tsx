@@ -487,131 +487,66 @@ export default function SimpleGame() {
             display: "flex",
             flexDirection: "column",
             flexShrink: 0,
+            overflow: "hidden",
           }}
         >
-          <div
-            style={{
-              padding: "16px",
-              borderBottom: "1px solid #333",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              flexShrink: 0,
-            }}
-          >
-            <h2 style={{ color: "#fff", fontSize: 20, fontWeight: 700, margin: 0 }}>Seaded</h2>
-            <button
-              onClick={handleResetSettings}
-              style={{
-                padding: "6px 12px", borderRadius: 8, border: "1px solid #555",
-                background: "#222", color: "#f87171", fontSize: 13, fontWeight: 600,
-                cursor: "pointer",
-              }}
-            >Reset</button>
-          </div>
-
-          <div style={{ flex: 1, overflowY: "auto", padding: "12px 16px", display: "flex", flexDirection: "column", gap: 16 }}>
-            {/* TEST section */}
-            <div style={{ background: "#161616", borderRadius: 12, padding: 12, border: "1px solid #333" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                <button
-                  onClick={handleTest}
-                  disabled={isPlaying || testRunning}
-                  style={{
-                    padding: "8px 20px", borderRadius: 8, border: "none",
-                    background: testRunning ? "#92400e" : (isPlaying ? "#333" : "#eab308"),
-                    color: testRunning ? "#fef3c7" : (isPlaying ? "#666" : "#000"),
-                    fontSize: 15, fontWeight: 900,
-                    cursor: isPlaying || testRunning ? "not-allowed" : "pointer",
-                    opacity: isPlaying ? 0.4 : 1,
-                  }}
-                >
-                  {testRunning ? `TESTING... ${testProgress.mapped}/${testProgress.total}` : "TEST"}
-                </button>
-                <span style={{ fontSize: 12, color: testStatus === "completed" ? "#4ade80" : testStatus === "failed" ? "#f87171" : "#888" }}>
-                  {testStatus === "completed" ? "✓ Valmis" : testStatus === "failed" ? "✗ Ebaõnnestus" : testStatus === "running" ? "Jookseb..." : "Testimata"}
-                </span>
-              </div>
-              {testError && <div style={{ color: "#f87171", fontSize: 12, marginBottom: 6 }}>{testError}</div>}
-              {constraintError && <div style={{ color: "#f87171", fontSize: 12 }}>{constraintError}</div>}
+          {/* Header */}
+          <div style={{ padding: "8px 12px", borderBottom: "1px solid #333", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+            <span style={{ color: "#fff", fontSize: 16, fontWeight: 700 }}>Seaded</span>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <button onClick={handleTest} disabled={isPlaying || testRunning}
+                style={{ padding: "4px 14px", borderRadius: 6, border: "none", background: testRunning ? "#92400e" : "#eab308", color: testRunning ? "#fef3c7" : "#000", fontSize: 13, fontWeight: 900, cursor: isPlaying || testRunning ? "not-allowed" : "pointer" }}>
+                {testRunning ? `${testProgress.mapped}/${testProgress.total}` : "TEST"}
+              </button>
+              <span style={{ fontSize: 11, color: testStatus === "completed" ? "#4ade80" : testStatus === "failed" ? "#f87171" : "#666", minWidth: 20 }}>
+                {testStatus === "completed" ? "✓" : testStatus === "failed" ? "✗" : ""}
+              </span>
+              <button onClick={handleResetSettings}
+                style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid #555", background: "#222", color: "#f87171", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                Reset
+              </button>
             </div>
+          </div>
+          {(testError || constraintError) && (
+            <div style={{ padding: "2px 12px", fontSize: 11, color: "#f87171", flexShrink: 0 }}>{testError || constraintError}</div>
+          )}
 
+          {/* Settings grid */}
+          <div style={{ flex: 1, padding: "6px 10px", display: "flex", flexDirection: "column", gap: 4, overflow: "hidden" }}>
             {/* Peab / Keela */}
-            <div style={{ background: "#161616", borderRadius: 12, padding: 12, border: "1px solid #333" }}>
-              <div style={{ fontSize: 13, color: "#888", fontWeight: 600, marginBottom: 8 }}>Sihtmärk</div>
-              <div style={{ display: "flex", gap: 12 }}>
-                <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: 11, color: "#4ade80", display: "block", marginBottom: 4 }}>Peab=</label>
-                  <input
-                    type="number" min="0" placeholder="—"
-                    value={targetTotal !== null ? targetTotal : ""}
-                    onChange={(e) => setTargetTotal(e.target.value === "" ? null : parseInt(e.target.value))}
-                    style={inputStyle("#166534", "#4ade80")}
-                  />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: 11, color: "#f87171", display: "block", marginBottom: 4 }}>Keela=</label>
-                  <input
-                    type="number" min="0" placeholder="—"
-                    value={avoidTotal !== null ? avoidTotal : ""}
-                    onChange={(e) => setAvoidTotal(e.target.value === "" ? null : parseInt(e.target.value))}
-                    style={inputStyle("#7f1d1d", "#f87171")}
-                  />
-                </div>
-              </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <Stepper label="Peab" value={targetTotal ?? 0} onChange={(v) => setTargetTotal(v === 0 ? null : v)} step={1} color="#4ade80" />
+              <Stepper label="Keela" value={avoidTotal ?? 0} onChange={(v) => setAvoidTotal(v === 0 ? null : v)} step={1} color="#f87171" />
             </div>
 
             {/* Box values */}
-            <div style={{ background: "#161616", borderRadius: 12, padding: 12, border: "1px solid #333" }}>
-              <div style={{ fontSize: 13, color: "#888", fontWeight: 600, marginBottom: 8 }}>Kastide väärtused ({gameSettings.boxValues.length} kasti)</div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            <div style={{ background: "#141414", borderRadius: 8, padding: "4px 6px", border: "1px solid #282828" }}>
+              <div style={{ fontSize: 10, color: "#666", marginBottom: 3 }}>Kastid ({gameSettings.boxValues.length})</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
                 {gameSettings.boxValues.map((val, i) => (
-                  <input
-                    key={i}
-                    type="number"
-                    value={val}
-                    onChange={(e) => handleBoxValueChange(i, parseInt(e.target.value) || 0)}
-                    style={{
-                      width: 48, height: 32,
-                      background: "#1a1a1a", border: "1px solid #059669",
-                      borderRadius: 6, color: "#059669",
-                      textAlign: "center" as const, fontSize: 13, outline: "none",
-                    }}
-                  />
+                  <div key={i} style={{ display: "flex", alignItems: "center" }}>
+                    <button onClick={() => handleBoxValueChange(i, val - 1)} style={miniBtn}>−</button>
+                    <span style={{ width: 24, textAlign: "center" as const, fontSize: 12, color: "#059669", fontWeight: 700 }}>{val}</span>
+                    <button onClick={() => handleBoxValueChange(i, val + 1)} style={miniBtn}>+</button>
+                  </div>
                 ))}
               </div>
             </div>
 
-            {/* Setting groups */}
-            {SETTING_GROUPS.map((group) => (
-              <div key={group.label} style={{ background: "#161616", borderRadius: 12, padding: 12, border: "1px solid #333" }}>
-                <div style={{ fontSize: 13, color: "#888", fontWeight: 600, marginBottom: 8 }}>{group.label}</div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {group.fields.map((field) => (
-                    <div key={field.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                      <span style={{ fontSize: 13, color: "#ccc" }}>{field.label}</span>
-                      <input
-                        type="number"
-                        min={field.min}
-                        max={field.max}
-                        step={field.step}
-                        value={gameSettings[field.key] as number}
-                        onChange={(e) => updateSetting(field.key, parseFloat(e.target.value) || 0)}
-                        style={{
-                          width: 70, height: 32,
-                          background: "#1a1a1a", border: "1px solid #444",
-                          borderRadius: 6, color: "#fff",
-                          textAlign: "center" as const, fontSize: 13, outline: "none",
-                        }}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-
-            {/* Spacer at bottom */}
-            <div style={{ height: 20, flexShrink: 0 }} />
+            {/* All settings in 2-column grid */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
+              {ALL_SETTINGS_FLAT.map((f) => (
+                <Stepper
+                  key={f.key}
+                  label={f.label}
+                  value={gameSettings[f.key] as number}
+                  onChange={(v) => updateSetting(f.key, v)}
+                  step={f.step ?? 1}
+                  min={f.min}
+                  max={f.max}
+                />
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -627,11 +562,39 @@ export default function SimpleGame() {
   );
 }
 
-function inputStyle(borderColor: string, textColor: string): React.CSSProperties {
-  return {
-    width: "100%", height: 36,
-    background: "#1a1a1a", border: `1px solid ${borderColor}`,
-    borderRadius: 6, color: textColor,
-    textAlign: "center", fontSize: 15, outline: "none",
+// Flat list of all settings for the 2-column grid
+const ALL_SETTINGS_FLAT = SETTING_GROUPS.flatMap(g => g.fields);
+
+const miniBtn: React.CSSProperties = {
+  width: 18, height: 18, padding: 0, border: "none", borderRadius: 4,
+  background: "#282828", color: "#888", fontSize: 12, fontWeight: 700,
+  cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+  lineHeight: 1,
+};
+
+function Stepper({ label, value, onChange, step = 1, min, max, color }: {
+  label: string; value: number; onChange: (v: number) => void;
+  step?: number; min?: number; max?: number; color?: string;
+}) {
+  const clamp = (v: number) => {
+    let n = Math.round(v * 1000) / 1000;
+    if (min !== undefined) n = Math.max(min, n);
+    if (max !== undefined) n = Math.min(max, n);
+    return n;
   };
+  const c = color || "#fff";
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", justifyContent: "space-between",
+      background: "#141414", borderRadius: 6, padding: "3px 6px",
+      border: "1px solid #282828", height: 28,
+    }}>
+      <span style={{ fontSize: 10, color: "#999", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{label}</span>
+      <div style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0 }}>
+        <button onClick={() => onChange(clamp(value - step))} style={{ ...miniBtn, fontSize: 14 }}>◀</button>
+        <span style={{ minWidth: 32, textAlign: "center" as const, fontSize: 12, fontWeight: 700, color: c }}>{value}</span>
+        <button onClick={() => onChange(clamp(value + step))} style={{ ...miniBtn, fontSize: 14 }}>▶</button>
+      </div>
+    </div>
+  );
 }
