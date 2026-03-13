@@ -19,13 +19,13 @@ export const DEFAULT_SETTINGS = {
   fontValue: 20,
   fontCount: 14,
   wallThicknessMult: 2.0,
-  pegsPerRow: 13,
+  pegsPerRow: 12,
   pegRows: 19,
   gravity: 1.2,
   restitution: 0.7,
   friction: 0,
   density: 5.05,
-  boxValues: [0, 1, 3, 7, 14, 20, 24, 28, 31, 33, 34, 35],
+  boxValues: [17, 2, 33, 5, 0, 34, 11, 29, 1, 23, 32],
   wallGap: 1.0,
 };
 
