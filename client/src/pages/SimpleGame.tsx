@@ -87,12 +87,37 @@ export default function SimpleGame() {
   const [settingsLoaded, setSettingsLoaded] = useState(false);
 
   const [activePage, setActivePage] = useState(0);
+  const [pinUnlocked, setPinUnlocked] = useState(false);
+  const [pinInput, setPinInput] = useState("");
+  const [pinError, setPinError] = useState(false);
   const plinkoRef = useRef<PlinkoSimpleRef>(null);
   const initDone = useRef(false);
   const totalsLoadedRef = useRef(false);
   const settingsPageRef = useRef<HTMLDivElement>(null);
   const touchStartY = useRef(0);
   const touchStartTime = useRef(0);
+  const PIN_CODE = "037";
+
+  // PIN digit handler
+  const handlePinDigit = useCallback((digit: string) => {
+    setPinError(false);
+    const newPin = pinInput + digit;
+    setPinInput(newPin);
+    if (newPin.length === 3) {
+      if (newPin === PIN_CODE) {
+        setPinUnlocked(true);
+        setPinInput("");
+      } else {
+        setPinError(true);
+        setTimeout(() => { setPinInput(""); setPinError(false); }, 400);
+      }
+    }
+  }, [pinInput, PIN_CODE]);
+
+  const handlePinDelete = useCallback(() => {
+    setPinInput(prev => prev.slice(0, -1));
+    setPinError(false);
+  }, []);
 
   // Swipe handler — needs strong deliberate swipe to switch pages
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
@@ -106,7 +131,6 @@ export default function SimpleGame() {
     const velocity = Math.abs(dy) / dt; // px/ms
 
     if (activePage === 0 && dy > 80 && velocity > 0.3) {
-      // Strong swipe up from game → settings
       setActivePage(1);
     }
   }, [activePage]);
@@ -496,7 +520,7 @@ export default function SimpleGame() {
           </div>
         </div>
 
-        {/* ═══ PAGE 2: Settings ═══ */}
+        {/* ═══ PAGE 2: Settings (PIN protected) ═══ */}
         <div
           ref={settingsPageRef}
           style={{
@@ -509,70 +533,116 @@ export default function SimpleGame() {
             overflow: "hidden",
           }}
         >
-          {/* Header */}
-          <div style={{ padding: "8px 12px", borderBottom: "1px solid #333", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <button onClick={() => setActivePage(0)}
-                style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid #444", background: "#222", color: "#fff", fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          {!pinUnlocked ? (
+            /* ── PIN Entry Screen ── */
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 24 }}>
+              <button onClick={() => { setActivePage(0); setPinInput(""); setPinError(false); }}
+                style={{ position: "absolute", top: 12, left: 12, width: 32, height: 32, borderRadius: 8, border: "1px solid #444", background: "#222", color: "#fff", fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 ▲
               </button>
-              <span style={{ color: "#fff", fontSize: 16, fontWeight: 700 }}>Seaded</span>
-            </div>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <button onClick={handleTest} disabled={isPlaying || testRunning}
-                style={{ padding: "4px 14px", borderRadius: 6, border: "none", background: testRunning ? "#92400e" : "#eab308", color: testRunning ? "#fef3c7" : "#000", fontSize: 13, fontWeight: 900, cursor: isPlaying || testRunning ? "not-allowed" : "pointer" }}>
-                {testRunning ? `${testProgress.mapped}/${testProgress.total}` : "TEST"}
-              </button>
-              <span style={{ fontSize: 11, color: testStatus === "completed" ? "#4ade80" : testStatus === "failed" ? "#f87171" : "#666", minWidth: 20 }}>
-                {testStatus === "completed" ? "✓" : testStatus === "failed" ? "✗" : ""}
-              </span>
-              <button onClick={handleResetSettings}
-                style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid #555", background: "#222", color: "#f87171", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
-                Reset
-              </button>
-            </div>
-          </div>
-          {(testError || constraintError) && (
-            <div style={{ padding: "2px 12px", fontSize: 11, color: "#f87171", flexShrink: 0 }}>{testError || constraintError}</div>
-          )}
-
-          {/* Settings grid */}
-          <div style={{ flex: 1, padding: "8px 10px", display: "flex", flexDirection: "column", gap: 6, overflow: "hidden" }}>
-            {/* Peab / Keela */}
-            <div style={{ display: "flex", gap: 6 }}>
-              <Stepper label="Peab" value={targetTotal ?? 0} onChange={(v) => setTargetTotal(v === 0 ? null : v)} step={1} color="#4ade80" />
-              <Stepper label="Keela" value={avoidTotal ?? 0} onChange={(v) => setAvoidTotal(v === 0 ? null : v)} step={1} color="#f87171" />
-            </div>
-
-            {/* Box values - larger, more touch-friendly */}
-            <div style={{ background: "#141414", borderRadius: 8, padding: "6px 8px", border: "1px solid #282828" }}>
-              <div style={{ fontSize: 11, color: "#666", marginBottom: 4 }}>Kastid ({gameSettings.boxValues.length})</div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 4 }}>
-                {gameSettings.boxValues.map((val, i) => (
-                  <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "center", background: "#1a1a1a", borderRadius: 6, border: "1px solid #333", height: 32 }}>
-                    <button onClick={() => handleBoxValueChange(i, val - 1)} style={boxBtn}>◀</button>
-                    <span style={{ flex: 1, textAlign: "center" as const, fontSize: 14, color: "#059669", fontWeight: 700 }}>{val}</span>
-                    <button onClick={() => handleBoxValueChange(i, val + 1)} style={boxBtn}>▶</button>
-                  </div>
+              <div style={{ fontSize: 14, color: "#666", fontWeight: 600 }}>Sisesta PIN</div>
+              {/* PIN dots */}
+              <div style={{ display: "flex", gap: 16 }}>
+                {[0, 1, 2].map(i => (
+                  <div key={i} style={{
+                    width: 20, height: 20, borderRadius: "50%",
+                    border: `2px solid ${pinError ? "#f87171" : "#444"}`,
+                    background: i < pinInput.length ? (pinError ? "#f87171" : "#059669") : "transparent",
+                    transition: "all 0.15s",
+                    ...(pinError ? { animation: "pinShake 0.4s ease-in-out" } : {}),
+                  }} />
+                ))}
+              </div>
+              {/* Number pad */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, width: 240 }}>
+                {["1","2","3","4","5","6","7","8","9","","0","⌫"].map((key) => (
+                  key === "" ? <div key="empty" /> :
+                  <button
+                    key={key}
+                    onClick={() => key === "⌫" ? handlePinDelete() : handlePinDigit(key)}
+                    style={{
+                      width: 68, height: 68, borderRadius: 16,
+                      border: "1px solid #333",
+                      background: key === "⌫" ? "transparent" : "#1a1a1a",
+                      color: "#fff", fontSize: key === "⌫" ? 24 : 28,
+                      fontWeight: 600, cursor: "pointer",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      WebkitTapHighlightColor: "transparent",
+                      transition: "background 0.1s",
+                    }}
+                  >{key}</button>
                 ))}
               </div>
             </div>
+          ) : (
+            /* ── Settings Content (unlocked) ── */
+            <>
+              {/* Header */}
+              <div style={{ padding: "8px 12px", borderBottom: "1px solid #333", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <button onClick={() => { setActivePage(0); setPinUnlocked(false); setPinInput(""); }}
+                    style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid #444", background: "#222", color: "#fff", fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    ▲
+                  </button>
+                  <span style={{ color: "#fff", fontSize: 16, fontWeight: 700 }}>Seaded</span>
+                </div>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <button onClick={handleTest} disabled={isPlaying || testRunning}
+                    style={{ padding: "4px 14px", borderRadius: 6, border: "none", background: testRunning ? "#92400e" : "#eab308", color: testRunning ? "#fef3c7" : "#000", fontSize: 13, fontWeight: 900, cursor: isPlaying || testRunning ? "not-allowed" : "pointer" }}>
+                    {testRunning ? `${testProgress.mapped}/${testProgress.total}` : "TEST"}
+                  </button>
+                  <span style={{ fontSize: 11, color: testStatus === "completed" ? "#4ade80" : testStatus === "failed" ? "#f87171" : "#666", minWidth: 20 }}>
+                    {testStatus === "completed" ? "✓" : testStatus === "failed" ? "✗" : ""}
+                  </span>
+                  <button onClick={handleResetSettings}
+                    style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid #555", background: "#222", color: "#f87171", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                    Reset
+                  </button>
+                </div>
+              </div>
+              {(testError || constraintError) && (
+                <div style={{ padding: "2px 12px", fontSize: 11, color: "#f87171", flexShrink: 0 }}>{testError || constraintError}</div>
+              )}
 
-            {/* All settings in 2-column grid */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, flex: 1 }}>
-              {ALL_SETTINGS_FLAT.map((f) => (
-                <Stepper
-                  key={f.key}
-                  label={f.label}
-                  value={gameSettings[f.key] as number}
-                  onChange={(v) => updateSetting(f.key, v)}
-                  step={f.step ?? 1}
-                  min={f.min}
-                  max={f.max}
-                />
-              ))}
-            </div>
-          </div>
+              {/* Settings grid */}
+              <div style={{ flex: 1, padding: "8px 10px", display: "flex", flexDirection: "column", gap: 6, overflow: "hidden" }}>
+                {/* Peab / Keela */}
+                <div style={{ display: "flex", gap: 6 }}>
+                  <Stepper label="Peab" value={targetTotal ?? 0} onChange={(v) => setTargetTotal(v === 0 ? null : v)} step={1} color="#4ade80" />
+                  <Stepper label="Keela" value={avoidTotal ?? 0} onChange={(v) => setAvoidTotal(v === 0 ? null : v)} step={1} color="#f87171" />
+                </div>
+
+                {/* Box values - larger, more touch-friendly */}
+                <div style={{ background: "#141414", borderRadius: 8, padding: "6px 8px", border: "1px solid #282828" }}>
+                  <div style={{ fontSize: 11, color: "#666", marginBottom: 4 }}>Kastid ({gameSettings.boxValues.length})</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 4 }}>
+                    {gameSettings.boxValues.map((val, i) => (
+                      <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "center", background: "#1a1a1a", borderRadius: 6, border: "1px solid #333", height: 32 }}>
+                        <button onClick={() => handleBoxValueChange(i, val - 1)} style={boxBtn}>◀</button>
+                        <span style={{ flex: 1, textAlign: "center" as const, fontSize: 14, color: "#059669", fontWeight: 700 }}>{val}</span>
+                        <button onClick={() => handleBoxValueChange(i, val + 1)} style={boxBtn}>▶</button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* All settings in 2-column grid */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, flex: 1 }}>
+                  {ALL_SETTINGS_FLAT.map((f) => (
+                    <Stepper
+                      key={f.key}
+                      label={f.label}
+                      value={gameSettings[f.key] as number}
+                      onChange={(v) => updateSetting(f.key, v)}
+                      step={f.step ?? 1}
+                      min={f.min}
+                      max={f.max}
+                    />
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -581,6 +651,13 @@ export default function SimpleGame() {
           0% { transform: translate(-50%, -50%) scale(0.3); opacity: 0; }
           60% { transform: translate(-50%, -50%) scale(1.1); opacity: 1; }
           100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+        @keyframes pinShake {
+          0%, 100% { transform: translateX(0); }
+          20% { transform: translateX(-8px); }
+          40% { transform: translateX(8px); }
+          60% { transform: translateX(-6px); }
+          80% { transform: translateX(6px); }
         }
       `}</style>
     </div>
