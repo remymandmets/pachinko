@@ -535,7 +535,7 @@ export default function SimpleGame() {
         >
           {!pinUnlocked ? (
             /* ── PIN Entry Screen ── */
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 24 }}>
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 24, position: "relative" }}>
               <button onClick={() => { setActivePage(0); setPinInput(""); setPinError(false); }}
                 style={{ position: "absolute", top: 12, left: 12, width: 32, height: 32, borderRadius: 8, border: "1px solid #444", background: "#222", color: "#fff", fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 ▲
