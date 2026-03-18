@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import PlinkoSimple, { PlinkoSimpleRef, DEFAULT_SETTINGS, GameSettings } from "@/components/PlinkoSimple";
+import PlinkoSimple, { PlinkoSimpleRef, DEFAULT_SETTINGS, GameSettings, BgAdjust } from "@/components/PlinkoSimple";
 
 function generateArrangements(min: number, max: number): number[][] {
   const range = max - min;
@@ -87,6 +87,8 @@ export default function SimpleGame() {
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
   const [uploadingBg, setUploadingBg] = useState(false);
+  const [bgAdjust, setBgAdjust] = useState<BgAdjust>({ zoom: 100, x: 50, y: 50 });
+  const bgAdjustLoaded = useRef(false);
 
   const [activePage, setActivePage] = useState(0);
   const [pinUnlocked, setPinUnlocked] = useState(false);
@@ -231,6 +233,14 @@ export default function SimpleGame() {
           if (bgData?.dataUrl) setBackgroundImage(bgData.dataUrl);
         }
       } catch {}
+      try {
+        const adjRes = await fetch("/api/admin/background-adjust");
+        if (adjRes.ok) {
+          const adj = await adjRes.json();
+          if (adj) setBgAdjust(adj);
+        }
+      } catch {}
+      bgAdjustLoaded.current = true;
       setSettingsLoaded(true);
     };
     load();
@@ -250,6 +260,21 @@ export default function SimpleGame() {
     }, 500);
     return () => clearTimeout(timer);
   }, [gameSettings, settingsLoaded]);
+
+  // Save bg adjust to DB (debounced)
+  useEffect(() => {
+    if (!bgAdjustLoaded.current) return;
+    const timer = setTimeout(async () => {
+      try {
+        await fetch("/api/admin/background-adjust", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(bgAdjust),
+        });
+      } catch {}
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [bgAdjust]);
 
   // Load saved mapping + total rules on startup
   useEffect(() => {
@@ -453,7 +478,7 @@ export default function SimpleGame() {
         >
           {/* Game area - 80dvh */}
           <div style={{ height: "85dvh", position: "relative", flexShrink: 0 }}>
-            <PlinkoSimple ref={plinkoRef} onGameEnd={handleGameEnd} settings={plinkoSettings} backgroundImage={backgroundImage} />
+            <PlinkoSimple ref={plinkoRef} onGameEnd={handleGameEnd} settings={plinkoSettings} backgroundImage={backgroundImage} bgAdjust={bgAdjust} />
 
             {showScore && lastScore !== null && (
               <div
@@ -640,6 +665,14 @@ export default function SimpleGame() {
 
               {/* Settings grid */}
               <div style={{ flex: 1, padding: "4px 6px", display: "flex", flexDirection: "column", gap: 3, overflow: "auto" }}>
+                {/* Background adjust */}
+                {backgroundImage && (
+                  <div style={{ display: "flex", gap: 2 }}>
+                    <Stepper label="Zoom" value={bgAdjust.zoom} onChange={(v) => setBgAdjust(p => ({ ...p, zoom: v }))} step={5} min={50} max={300} color="#a78bfa" />
+                    <Stepper label="X" value={bgAdjust.x} onChange={(v) => setBgAdjust(p => ({ ...p, x: v }))} step={1} min={0} max={100} color="#a78bfa" />
+                    <Stepper label="Y" value={bgAdjust.y} onChange={(v) => setBgAdjust(p => ({ ...p, y: v }))} step={1} min={0} max={100} color="#a78bfa" />
+                  </div>
+                )}
                 {/* Peab / Keela */}
                 <div style={{ display: "flex", gap: 3 }}>
                   <Stepper label="Peab" value={targetTotal ?? 0} onChange={(v) => setTargetTotal(v === 0 ? null : v)} step={1} color="#4ade80" />

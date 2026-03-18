@@ -148,6 +148,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get background adjust settings
+  app.get("/api/admin/background-adjust", async (_req, res) => {
+    try {
+      const adjust = await storage.getBackgroundAdjust();
+      res.json(adjust || { zoom: 100, x: 50, y: 50 });
+    } catch (error) {
+      console.error("Error fetching background adjust:", error);
+      res.status(500).json({ error: "Failed to fetch background adjust" });
+    }
+  });
+
+  // Save background adjust settings
+  app.put("/api/admin/background-adjust", async (req, res) => {
+    try {
+      const { zoom, x, y } = req.body;
+      if (typeof zoom !== "number" || typeof x !== "number" || typeof y !== "number") {
+        return res.status(400).json({ error: "zoom, x, y must be numbers" });
+      }
+      await storage.saveBackgroundAdjust({ zoom, x, y });
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error saving background adjust:", error);
+      res.status(500).json({ error: "Failed to save background adjust" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

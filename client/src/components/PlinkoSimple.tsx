@@ -107,14 +107,21 @@ export interface PlinkoSimpleRef {
   normToPixel: (norm: number) => number;
 }
 
+export interface BgAdjust {
+  zoom: number;  // percentage, 100 = cover
+  x: number;     // percentage 0-100, 50 = center
+  y: number;     // percentage 0-100, 50 = center
+}
+
 interface PlinkoSimpleProps {
   onGameEnd?: (totalScore: number, breakdown: string) => void;
   settings?: Partial<GameSettings>;
   backgroundImage?: string | null;
+  bgAdjust?: BgAdjust;
 }
 
 const PlinkoSimple = forwardRef<PlinkoSimpleRef, PlinkoSimpleProps>(
-  ({ onGameEnd, settings: settingsOverride, backgroundImage }, ref) => {
+  ({ onGameEnd, settings: settingsOverride, backgroundImage, bgAdjust }, ref) => {
     // Merge settings with defaults
     const s = useMemo<GameSettings>(() => ({
       ...DEFAULT_SETTINGS,
@@ -707,6 +714,11 @@ const PlinkoSimple = forwardRef<PlinkoSimpleRef, PlinkoSimpleProps>(
       },
     }));
 
+    const bgUrl = backgroundImage || '/pachinko4.png';
+    const bgZ = bgAdjust?.zoom ?? 100;
+    const bgX = bgAdjust?.x ?? 50;
+    const bgY = bgAdjust?.y ?? 50;
+
     return (
       <div
         ref={containerRef}
@@ -715,9 +727,10 @@ const PlinkoSimple = forwardRef<PlinkoSimpleRef, PlinkoSimpleProps>(
           height: "100%",
           position: "relative",
           overflow: "hidden",
-          background: backgroundImage
-            ? `url('${backgroundImage}') center center / cover no-repeat`
-            : `url('/pachinko4.png') center center / cover no-repeat`,
+          backgroundImage: `url('${bgUrl}')`,
+          backgroundSize: `${bgZ}%`,
+          backgroundPosition: `${bgX}% ${bgY}%`,
+          backgroundRepeat: "no-repeat",
         }}
       >
         {dimensions && (

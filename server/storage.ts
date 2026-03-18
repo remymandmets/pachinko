@@ -10,6 +10,8 @@ export interface IStorage {
   saveSettings(settings: Record<string, any>): Promise<void>;
   getBackgroundImage(): Promise<string | null>;
   saveBackgroundImage(dataUrl: string): Promise<void>;
+  getBackgroundAdjust(): Promise<{ zoom: number; x: number; y: number } | null>;
+  saveBackgroundAdjust(adjust: { zoom: number; x: number; y: number }): Promise<void>;
 }
 
 class DatabaseStorage implements IStorage {
@@ -132,6 +134,28 @@ class DatabaseStorage implements IStorage {
           VALUES ('background_image', ${dataUrl}, NOW())
           ON CONFLICT (key)
           DO UPDATE SET value = ${dataUrl}, updated_at = NOW()`
+    );
+  }
+
+  async getBackgroundAdjust(): Promise<{ zoom: number; x: number; y: number } | null> {
+    const result = await db.execute(
+      sql`SELECT value FROM game_state WHERE key = 'background_adjust'`
+    );
+    if (result.rows.length === 0) return null;
+    try {
+      return JSON.parse((result.rows[0] as any).value);
+    } catch {
+      return null;
+    }
+  }
+
+  async saveBackgroundAdjust(adjust: { zoom: number; x: number; y: number }): Promise<void> {
+    const value = JSON.stringify(adjust);
+    await db.execute(
+      sql`INSERT INTO game_state (key, value, updated_at)
+          VALUES ('background_adjust', ${value}, NOW())
+          ON CONFLICT (key)
+          DO UPDATE SET value = ${value}, updated_at = NOW()`
     );
   }
 }
