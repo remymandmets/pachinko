@@ -110,10 +110,11 @@ export interface PlinkoSimpleRef {
 interface PlinkoSimpleProps {
   onGameEnd?: (totalScore: number, breakdown: string) => void;
   settings?: Partial<GameSettings>;
+  backgroundImage?: string | null;
 }
 
 const PlinkoSimple = forwardRef<PlinkoSimpleRef, PlinkoSimpleProps>(
-  ({ onGameEnd, settings: settingsOverride }, ref) => {
+  ({ onGameEnd, settings: settingsOverride, backgroundImage }, ref) => {
     // Merge settings with defaults
     const s = useMemo<GameSettings>(() => ({
       ...DEFAULT_SETTINGS,
@@ -714,7 +715,9 @@ const PlinkoSimple = forwardRef<PlinkoSimpleRef, PlinkoSimpleProps>(
           height: "100%",
           position: "relative",
           overflow: "hidden",
-          background: `url('/pachinko4.png') center center / cover no-repeat`,
+          background: backgroundImage
+            ? `url('${backgroundImage}') center center / cover no-repeat`
+            : `url('/pachinko4.png') center center / cover no-repeat`,
         }}
       >
         {dimensions && (

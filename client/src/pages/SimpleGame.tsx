@@ -85,6 +85,8 @@ export default function SimpleGame() {
   // Settings state (all game settings including wallGap)
   const [gameSettings, setGameSettings] = useState<GameSettings>({ ...DEFAULT_SETTINGS });
   const [settingsLoaded, setSettingsLoaded] = useState(false);
+  const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
+  const [uploadingBg, setUploadingBg] = useState(false);
 
   const [activePage, setActivePage] = useState(0);
   const [pinUnlocked, setPinUnlocked] = useState(false);
@@ -210,7 +212,7 @@ export default function SimpleGame() {
     return generateArrangements(min, max);
   }, []);
 
-  // Load settings from DB
+  // Load settings + background from DB
   useEffect(() => {
     const load = async () => {
       try {
@@ -220,6 +222,13 @@ export default function SimpleGame() {
           if (data && Object.keys(data).length > 0) {
             setGameSettings(prev => ({ ...prev, ...data, boxValues: data.boxValues ?? prev.boxValues }));
           }
+        }
+      } catch {}
+      try {
+        const bgRes = await fetch("/api/admin/background");
+        if (bgRes.ok) {
+          const bgData = await bgRes.json();
+          if (bgData?.dataUrl) setBackgroundImage(bgData.dataUrl);
         }
       } catch {}
       setSettingsLoaded(true);
@@ -392,6 +401,27 @@ export default function SimpleGame() {
     setGameSettings({ ...DEFAULT_SETTINGS });
   }, []);
 
+  const handleBgUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingBg(true);
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUrl = reader.result as string;
+      try {
+        const res = await fetch("/api/admin/background", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ dataUrl }),
+        });
+        if (res.ok) setBackgroundImage(dataUrl);
+      } catch {}
+      setUploadingBg(false);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  }, []);
+
   return (
     <div
       style={{
@@ -423,7 +453,7 @@ export default function SimpleGame() {
         >
           {/* Game area - 80dvh */}
           <div style={{ height: "85dvh", position: "relative", flexShrink: 0 }}>
-            <PlinkoSimple ref={plinkoRef} onGameEnd={handleGameEnd} settings={plinkoSettings} />
+            <PlinkoSimple ref={plinkoRef} onGameEnd={handleGameEnd} settings={plinkoSettings} backgroundImage={backgroundImage} />
 
             {showScore && lastScore !== null && (
               <div
@@ -578,48 +608,52 @@ export default function SimpleGame() {
             /* ── Settings Content (unlocked) ── */
             <>
               {/* Header */}
-              <div style={{ padding: "8px 12px", borderBottom: "1px solid #333", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ padding: "4px 8px", borderBottom: "1px solid #333", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <button onClick={() => { setActivePage(0); setPinUnlocked(false); setPinInput(""); }}
-                    style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid #444", background: "#222", color: "#fff", fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    style={{ width: 28, height: 28, borderRadius: 6, border: "1px solid #444", background: "#222", color: "#fff", fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                     ▲
                   </button>
-                  <span style={{ color: "#fff", fontSize: 16, fontWeight: 700 }}>Seaded</span>
+                  <span style={{ color: "#fff", fontSize: 14, fontWeight: 700 }}>Seaded</span>
                 </div>
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <label style={{ padding: "3px 10px", borderRadius: 6, border: "1px solid #555", background: "#222", color: "#a78bfa", fontSize: 11, fontWeight: 600, cursor: uploadingBg ? "wait" : "pointer" }}>
+                    {uploadingBg ? "..." : "Taust"}
+                    <input type="file" accept="image/*" onChange={handleBgUpload} style={{ display: "none" }} />
+                  </label>
                   <button onClick={handleTest} disabled={isPlaying || testRunning}
-                    style={{ padding: "4px 14px", borderRadius: 6, border: "none", background: testRunning ? "#92400e" : "#eab308", color: testRunning ? "#fef3c7" : "#000", fontSize: 13, fontWeight: 900, cursor: isPlaying || testRunning ? "not-allowed" : "pointer" }}>
+                    style={{ padding: "3px 12px", borderRadius: 6, border: "none", background: testRunning ? "#92400e" : "#eab308", color: testRunning ? "#fef3c7" : "#000", fontSize: 12, fontWeight: 900, cursor: isPlaying || testRunning ? "not-allowed" : "pointer" }}>
                     {testRunning ? `${testProgress.mapped}/${testProgress.total}` : "TEST"}
                   </button>
-                  <span style={{ fontSize: 11, color: testStatus === "completed" ? "#4ade80" : testStatus === "failed" ? "#f87171" : "#666", minWidth: 20 }}>
+                  <span style={{ fontSize: 10, color: testStatus === "completed" ? "#4ade80" : testStatus === "failed" ? "#f87171" : "#666", minWidth: 14 }}>
                     {testStatus === "completed" ? "✓" : testStatus === "failed" ? "✗" : ""}
                   </span>
                   <button onClick={handleResetSettings}
-                    style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid #555", background: "#222", color: "#f87171", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                    style={{ padding: "3px 8px", borderRadius: 6, border: "1px solid #555", background: "#222", color: "#f87171", fontSize: 10, fontWeight: 600, cursor: "pointer" }}>
                     Reset
                   </button>
                 </div>
               </div>
               {(testError || constraintError) && (
-                <div style={{ padding: "2px 12px", fontSize: 11, color: "#f87171", flexShrink: 0 }}>{testError || constraintError}</div>
+                <div style={{ padding: "1px 8px", fontSize: 10, color: "#f87171", flexShrink: 0 }}>{testError || constraintError}</div>
               )}
 
               {/* Settings grid */}
-              <div style={{ flex: 1, padding: "8px 10px", display: "flex", flexDirection: "column", gap: 6, overflow: "hidden" }}>
+              <div style={{ flex: 1, padding: "4px 6px", display: "flex", flexDirection: "column", gap: 3, overflow: "auto" }}>
                 {/* Peab / Keela */}
-                <div style={{ display: "flex", gap: 6 }}>
+                <div style={{ display: "flex", gap: 3 }}>
                   <Stepper label="Peab" value={targetTotal ?? 0} onChange={(v) => setTargetTotal(v === 0 ? null : v)} step={1} color="#4ade80" />
                   <Stepper label="Keela" value={avoidTotal ?? 0} onChange={(v) => setAvoidTotal(v === 0 ? null : v)} step={1} color="#f87171" />
                 </div>
 
-                {/* Box values - larger, more touch-friendly */}
-                <div style={{ background: "#141414", borderRadius: 8, padding: "6px 8px", border: "1px solid #282828" }}>
-                  <div style={{ fontSize: 11, color: "#666", marginBottom: 4 }}>Kastid ({gameSettings.boxValues.length})</div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 4 }}>
+                {/* Box values */}
+                <div style={{ background: "#141414", borderRadius: 6, padding: "3px 6px", border: "1px solid #282828" }}>
+                  <div style={{ fontSize: 10, color: "#666", marginBottom: 2 }}>Kastid ({gameSettings.boxValues.length})</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 2 }}>
                     {gameSettings.boxValues.map((val, i) => (
-                      <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "center", background: "#1a1a1a", borderRadius: 6, border: "1px solid #333", height: 32 }}>
+                      <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "center", background: "#1a1a1a", borderRadius: 4, border: "1px solid #333", height: 28 }}>
                         <button onClick={() => handleBoxValueChange(i, val - 1)} style={boxBtn}>◀</button>
-                        <span style={{ flex: 1, textAlign: "center" as const, fontSize: 14, color: "#059669", fontWeight: 700 }}>{val}</span>
+                        <span style={{ flex: 1, textAlign: "center" as const, fontSize: 13, color: "#059669", fontWeight: 700 }}>{val}</span>
                         <button onClick={() => handleBoxValueChange(i, val + 1)} style={boxBtn}>▶</button>
                       </div>
                     ))}
@@ -627,7 +661,7 @@ export default function SimpleGame() {
                 </div>
 
                 {/* All settings in 2-column grid */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, flex: 1 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2, flex: 1 }}>
                   {ALL_SETTINGS_FLAT.map((f) => (
                     <Stepper
                       key={f.key}
@@ -668,8 +702,8 @@ export default function SimpleGame() {
 const ALL_SETTINGS_FLAT = SETTING_GROUPS.flatMap(g => g.fields);
 
 const miniBtn: React.CSSProperties = {
-  width: 22, height: 22, padding: 0, border: "none", borderRadius: 4,
-  background: "#282828", color: "#888", fontSize: 13, fontWeight: 700,
+  width: 20, height: 20, padding: 0, border: "none", borderRadius: 3,
+  background: "#282828", color: "#888", fontSize: 12, fontWeight: 700,
   cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
   lineHeight: 1,
 };
@@ -694,14 +728,14 @@ function Stepper({ label, value, onChange, step = 1, min, max, color }: {
   return (
     <div style={{
       display: "flex", alignItems: "center", justifyContent: "space-between",
-      background: "#141414", borderRadius: 6, padding: "3px 8px",
-      border: "1px solid #282828", height: 32,
+      background: "#141414", borderRadius: 4, padding: "2px 6px",
+      border: "1px solid #282828", height: 28,
     }}>
-      <span style={{ fontSize: 10, color: "#999", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{label}</span>
-      <div style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0 }}>
-        <button onClick={() => onChange(clamp(value - step))} style={{ ...miniBtn, fontSize: 14 }}>◀</button>
-        <span style={{ minWidth: 32, textAlign: "center" as const, fontSize: 12, fontWeight: 700, color: c }}>{value}</span>
-        <button onClick={() => onChange(clamp(value + step))} style={{ ...miniBtn, fontSize: 14 }}>▶</button>
+      <span style={{ fontSize: 9, color: "#999", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" as const }}>{label}</span>
+      <div style={{ display: "flex", alignItems: "center", gap: 1, flexShrink: 0 }}>
+        <button onClick={() => onChange(clamp(value - step))} style={{ ...miniBtn, fontSize: 13 }}>◀</button>
+        <span style={{ minWidth: 28, textAlign: "center" as const, fontSize: 11, fontWeight: 700, color: c }}>{value}</span>
+        <button onClick={() => onChange(clamp(value + step))} style={{ ...miniBtn, fontSize: 13 }}>▶</button>
       </div>
     </div>
   );

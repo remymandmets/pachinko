@@ -8,6 +8,8 @@ export interface IStorage {
   getLatestDropMapping(): Promise<{ mappings: Array<{ dropX: number; boxNumber: number }>; testRun: any } | null>;
   getSettings(): Promise<Record<string, any> | null>;
   saveSettings(settings: Record<string, any>): Promise<void>;
+  getBackgroundImage(): Promise<string | null>;
+  saveBackgroundImage(dataUrl: string): Promise<void>;
 }
 
 class DatabaseStorage implements IStorage {
@@ -113,6 +115,23 @@ class DatabaseStorage implements IStorage {
           VALUES ('game_settings', ${value}, NOW())
           ON CONFLICT (key)
           DO UPDATE SET value = ${value}, updated_at = NOW()`
+    );
+  }
+
+  async getBackgroundImage(): Promise<string | null> {
+    const result = await db.execute(
+      sql`SELECT value FROM game_state WHERE key = 'background_image'`
+    );
+    if (result.rows.length === 0) return null;
+    return (result.rows[0] as any).value || null;
+  }
+
+  async saveBackgroundImage(dataUrl: string): Promise<void> {
+    await db.execute(
+      sql`INSERT INTO game_state (key, value, updated_at)
+          VALUES ('background_image', ${dataUrl}, NOW())
+          ON CONFLICT (key)
+          DO UPDATE SET value = ${dataUrl}, updated_at = NOW()`
     );
   }
 }

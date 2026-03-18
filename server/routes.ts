@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import express from "express";
 import { storage } from "./storage";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -118,6 +119,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error saving settings:", error);
       res.status(500).json({ error: "Failed to save settings" });
+    }
+  });
+
+  // Get background image
+  app.get("/api/admin/background", async (_req, res) => {
+    try {
+      const dataUrl = await storage.getBackgroundImage();
+      res.json({ dataUrl });
+    } catch (error) {
+      console.error("Error fetching background:", error);
+      res.status(500).json({ error: "Failed to fetch background" });
+    }
+  });
+
+  // Upload background image (base64 data URL)
+  app.post("/api/admin/background", express.json({ limit: "10mb" }), async (req, res) => {
+    try {
+      const { dataUrl } = req.body;
+      if (!dataUrl || typeof dataUrl !== "string" || !dataUrl.startsWith("data:image/")) {
+        return res.status(400).json({ error: "Invalid image data" });
+      }
+      await storage.saveBackgroundImage(dataUrl);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error saving background:", error);
+      res.status(500).json({ error: "Failed to save background" });
     }
   });
 
