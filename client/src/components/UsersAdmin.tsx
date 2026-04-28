@@ -1,4 +1,5 @@
 import { useEffect, useState, FormEvent } from "react";
+import { createPortal } from "react-dom";
 
 const ESTONIAN_CITIES = [
   "Tallinn",
@@ -335,8 +336,8 @@ export default function UsersAdmin({ onBack }: UsersAdminProps) {
         )}
       </div>
 
-      {/* Modal form */}
-      {showForm && (
+      {/* Modal form rendered via portal to escape transformed parent containing block */}
+      {showForm && createPortal(
         <div
           onClick={cancelForm}
           style={{
@@ -513,7 +514,8 @@ export default function UsersAdmin({ onBack }: UsersAdminProps) {
               </button>
             </div>
           </form>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

@@ -35,6 +35,7 @@ const SETTING_GROUPS: Array<{
     label: "Mängu reeglid",
     fields: [
       { key: "wallGap", label: "Sein", min: 0, max: 3, step: 0.1 },
+      { key: "dropInterval", label: "Pallide vahe (ms)", min: 0, max: 5000, step: 500 },
     ],
   },
   {

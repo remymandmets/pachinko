@@ -27,6 +27,7 @@ export const DEFAULT_SETTINGS = {
   density: 5.05,
   boxValues: [17, 2, 33, 5, 0, 34, 11, 29, 1, 23, 32],
   wallGap: 1.0,
+  dropInterval: 500,
 };
 
 export type GameSettings = typeof DEFAULT_SETTINGS;
@@ -330,10 +331,7 @@ const PlinkoSimple = forwardRef<PlinkoSimpleRef, PlinkoSimpleProps>(
         ctx.translate(offsetX, offsetY);
         ctx.scale(scale, scale);
 
-        // Side walls
-        ctx.fillStyle = "rgba(255,0,0,0.8)";
-        ctx.fillRect(walls.leftWallX - derived.wallThickness / 2, 0, derived.wallThickness, derived.height);
-        ctx.fillRect(walls.rightWallX - derived.wallThickness / 2, 0, derived.wallThickness, derived.height);
+        // Side walls are physics-only (transparent visually)
 
         // Pegs
         for (let row = 0; row < s.pegRows; row++) {
@@ -515,7 +513,7 @@ const PlinkoSimple = forwardRef<PlinkoSimpleRef, PlinkoSimpleProps>(
           previewPositionsRef.current = previewPositionsRef.current.slice(1);
           setPreviewPositions(previewPositionsRef.current);
           dropped++;
-          if (dropped < positions.length) setTimeout(dropNext, 500);
+          if (dropped < positions.length) setTimeout(dropNext, settingsRef.current.dropInterval ?? 500);
         }
         dropNext();
       },
