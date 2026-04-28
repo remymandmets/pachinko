@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import PlinkoSimple, { PlinkoSimpleRef, DEFAULT_SETTINGS, GameSettings, BgAdjust } from "@/components/PlinkoSimple";
 import { useAuth } from "@/App";
+import InfoModal from "@/components/InfoModal";
+import UsersAdmin from "@/components/UsersAdmin";
 
 function generateArrangements(min: number, max: number): number[][] {
   const range = max - min;
@@ -92,7 +94,8 @@ export default function SimpleGame() {
   const bgAdjustLoaded = useRef(false);
 
   const [activePage, setActivePage] = useState(0);
-  const { user, logout, showLogin } = useAuth();
+  const [infoModal, setInfoModal] = useState<null | "guide" | "menu">(null);
+  const { user, showLogin, showProfile } = useAuth();
   const isAdmin = !!user?.isAdmin;
   const isLoggedIn = !!user;
   const plinkoRef = useRef<PlinkoSimpleRef>(null);
@@ -101,9 +104,10 @@ export default function SimpleGame() {
   const settingsPageRef = useRef<HTMLDivElement>(null);
   const touchStartY = useRef(0);
   const touchStartTime = useRef(0);
+  const TOTAL_PAGES = 3; // 0=game, 1=settings, 2=users (admin pages 1+2)
 
   // Swipe handler — needs strong deliberate swipe to switch pages.
-  // Only admins can reach the settings page.
+  // Only admins can leave the game page.
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     touchStartY.current = e.touches[0].clientY;
     touchStartTime.current = Date.now();
@@ -113,9 +117,16 @@ export default function SimpleGame() {
     const dy = touchStartY.current - e.changedTouches[0].clientY;
     const dt = Date.now() - touchStartTime.current;
     const velocity = Math.abs(dy) / dt; // px/ms
+    if (Math.abs(dy) <= 80 || velocity <= 0.3) return;
 
-    if (activePage === 0 && dy > 80 && velocity > 0.3 && isAdmin) {
-      setActivePage(1);
+    // Up swipe → next admin page (game→settings→users)
+    if (dy > 0 && isAdmin && activePage < TOTAL_PAGES - 1) {
+      setActivePage(activePage + 1);
+      return;
+    }
+    // Down swipe → previous page
+    if (dy < 0 && activePage > 0) {
+      setActivePage(activePage - 1);
     }
   }, [activePage, isAdmin]);
 
@@ -444,8 +455,8 @@ export default function SimpleGame() {
       <div
         style={{
           width: "100%",
-          height: "200dvh",
-          transform: `translateY(${activePage === 0 ? "0" : "-100dvh"})`,
+          height: `${TOTAL_PAGES * 100}dvh`,
+          transform: `translateY(-${activePage * 100}dvh)`,
           transition: "transform 0.4s cubic-bezier(0.22, 1, 0.36, 1)",
         }}
       >
@@ -460,8 +471,8 @@ export default function SimpleGame() {
             flexShrink: 0,
           }}
         >
-          {/* Game area - 75dvh */}
-          <div style={{ height: "75dvh", position: "relative", flexShrink: 0 }}>
+          {/* Game area - 80dvh */}
+          <div style={{ height: "80dvh", position: "relative", flexShrink: 0 }}>
             <PlinkoSimple ref={plinkoRef} onGameEnd={handleGameEnd} settings={plinkoSettings} backgroundImage={backgroundImage} bgAdjust={bgAdjust} />
 
             {showScore && lastScore !== null && (
@@ -498,10 +509,10 @@ export default function SimpleGame() {
             )}
           </div>
 
-          {/* Footer 25dvh: row 1 = play controls, row 2 = auth */}
+          {/* Footer 20dvh: row 1 = play controls, row 2 = action buttons */}
           <div
             style={{
-              height: "25dvh",
+              height: "20dvh",
               flexShrink: 0,
               display: "flex",
               flexDirection: "column",
@@ -517,7 +528,7 @@ export default function SimpleGame() {
                 alignItems: "center",
                 justifyContent: "center",
                 gap: "clamp(8px, 3vw, 16px)",
-                padding: "0 16px",
+                padding: "0 12px",
                 minHeight: 0,
               }}
             >
@@ -525,11 +536,11 @@ export default function SimpleGame() {
                 onClick={handlePrev}
                 disabled={isPlaying || testRunning}
                 style={{
-                  width: "clamp(44px, 12vw, 64px)", height: "clamp(44px, 12vw, 64px)",
-                  borderRadius: 14, border: "2px solid #333",
+                  width: "clamp(40px, 11vw, 56px)", height: "clamp(40px, 11vw, 56px)",
+                  borderRadius: 12, border: "2px solid #333",
                   background: isPlaying || testRunning ? "#1a1a1a" : "#222",
                   color: isPlaying || testRunning ? "#555" : "#fff",
-                  fontSize: "clamp(20px, 5vw, 30px)",
+                  fontSize: "clamp(18px, 4.5vw, 26px)",
                   cursor: isPlaying || testRunning ? "not-allowed" : "pointer",
                   display: "flex", alignItems: "center", justifyContent: "center",
                   transition: "all 0.2s", flexShrink: 0,
@@ -540,11 +551,11 @@ export default function SimpleGame() {
                 onClick={handlePlay}
                 disabled={isPlaying || testRunning}
                 style={{
-                  flex: 1, maxWidth: 220, height: "clamp(44px, 12vw, 64px)",
-                  borderRadius: 14, border: "none",
+                  flex: 1, maxWidth: 220, height: "clamp(40px, 11vw, 56px)",
+                  borderRadius: 12, border: "none",
                   background: isPlaying || testRunning ? "#065f46" : (isLoggedIn ? "#059669" : "#1f2937"),
                   color: isLoggedIn ? "#fff" : "#9ca3af",
-                  fontSize: "clamp(14px, 4vw, 24px)",
+                  fontSize: "clamp(13px, 3.6vw, 22px)",
                   fontWeight: 900, letterSpacing: isLoggedIn ? 2 : 1,
                   cursor: isPlaying || testRunning ? "not-allowed" : "pointer",
                   opacity: isPlaying || testRunning ? 0.5 : 1,
@@ -556,11 +567,11 @@ export default function SimpleGame() {
                 onClick={handleNext}
                 disabled={isPlaying || testRunning}
                 style={{
-                  width: "clamp(44px, 12vw, 64px)", height: "clamp(44px, 12vw, 64px)",
-                  borderRadius: 14, border: "2px solid #333",
+                  width: "clamp(40px, 11vw, 56px)", height: "clamp(40px, 11vw, 56px)",
+                  borderRadius: 12, border: "2px solid #333",
                   background: isPlaying || testRunning ? "#1a1a1a" : "#222",
                   color: isPlaying || testRunning ? "#555" : "#fff",
-                  fontSize: "clamp(20px, 5vw, 30px)",
+                  fontSize: "clamp(18px, 4.5vw, 26px)",
                   cursor: isPlaying || testRunning ? "not-allowed" : "pointer",
                   display: "flex", alignItems: "center", justifyContent: "center",
                   transition: "all 0.2s", flexShrink: 0,
@@ -568,51 +579,41 @@ export default function SimpleGame() {
               >▶</button>
             </div>
 
-            {/* Row 2 — auth status / login button */}
+            {/* Row 2 — 3 action buttons (Mängujuhend / Menüü / Logi sisse|Konto) */}
             <div
               style={{
-                flexShrink: 0,
+                flex: 1,
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr 1fr",
+                gap: 8,
+                padding: "6px 12px",
                 borderTop: "1px solid #1f1f1f",
-                padding: "8px 16px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 12,
-                minHeight: 44,
+                minHeight: 0,
               }}
             >
-              <span style={{ fontSize: 11, color: "#666" }}>
-                {isLoggedIn ? `Sisse logitud: ${user?.phone}` : "Külaline"}
-              </span>
+              <button
+                onClick={() => setInfoModal("guide")}
+                style={footerActionButtonStyle("neutral")}
+              >
+                Mängujuhend
+              </button>
+              <button
+                onClick={() => setInfoModal("menu")}
+                style={footerActionButtonStyle("neutral")}
+              >
+                Menüü
+              </button>
               {isLoggedIn ? (
                 <button
-                  onClick={() => { logout(); }}
-                  style={{
-                    padding: "6px 14px",
-                    borderRadius: 8,
-                    border: "1px solid #333",
-                    background: "transparent",
-                    color: "#aaa",
-                    fontSize: 12,
-                    fontWeight: 500,
-                    cursor: "pointer",
-                  }}
+                  onClick={showProfile}
+                  style={footerActionButtonStyle("green")}
                 >
-                  Logi välja
+                  Konto
                 </button>
               ) : (
                 <button
                   onClick={showLogin}
-                  style={{
-                    padding: "6px 14px",
-                    borderRadius: 8,
-                    border: "1px solid #4ade80",
-                    background: "transparent",
-                    color: "#4ade80",
-                    fontSize: 12,
-                    fontWeight: 600,
-                    cursor: "pointer",
-                  }}
+                  style={footerActionButtonStyle("red")}
                 >
                   Logi sisse
                 </button>
@@ -721,20 +722,43 @@ export default function SimpleGame() {
             </>
           )}
         </div>
+
+        {/* ═══ PAGE 3: Users admin (admin only) ═══ */}
+        <div
+          style={{
+            width: "100%",
+            height: "100dvh",
+            background: "#0a0a0a",
+            display: "flex",
+            flexDirection: "column",
+            flexShrink: 0,
+            overflow: "hidden",
+          }}
+        >
+          {!isAdmin ? (
+            <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "#888", fontSize: 14 }}>
+              <button onClick={() => setActivePage(0)} style={{ padding: "10px 20px", borderRadius: 8, border: "1px solid #444", background: "#222", color: "#fff", cursor: "pointer" }}>
+                Tagasi mängu
+              </button>
+            </div>
+          ) : (
+            <UsersAdmin onBack={() => setActivePage(1)} />
+          )}
+        </div>
       </div>
+
+      {infoModal === "guide" && (
+        <InfoModal title="Mängujuhend" onClose={() => setInfoModal(null)} />
+      )}
+      {infoModal === "menu" && (
+        <InfoModal title="Menüü" onClose={() => setInfoModal(null)} />
+      )}
 
       <style>{`
         @keyframes scoreAppear {
           0% { transform: translate(-50%, -50%) scale(0.3); opacity: 0; }
           60% { transform: translate(-50%, -50%) scale(1.1); opacity: 1; }
           100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
-        }
-        @keyframes pinShake {
-          0%, 100% { transform: translateX(0); }
-          20% { transform: translateX(-8px); }
-          40% { transform: translateX(8px); }
-          60% { transform: translateX(-6px); }
-          80% { transform: translateX(6px); }
         }
       `}</style>
     </div>
@@ -756,6 +780,34 @@ const boxBtn: React.CSSProperties = {
   background: "transparent", color: "#059669", fontSize: 11, fontWeight: 700,
   cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
 };
+
+function footerActionButtonStyle(variant: "neutral" | "red" | "green"): React.CSSProperties {
+  const base: React.CSSProperties = {
+    width: "100%",
+    height: "100%",
+    minHeight: 0,
+    borderRadius: 10,
+    fontSize: "clamp(11px, 3vw, 14px)",
+    fontWeight: 600,
+    cursor: "pointer",
+    transition: "all 0.15s",
+    padding: "0 6px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontFamily: "Inter, sans-serif",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  };
+  if (variant === "red") {
+    return { ...base, background: "#dc2626", color: "#fff", border: "1px solid #ef4444" };
+  }
+  if (variant === "green") {
+    return { ...base, background: "#16a34a", color: "#fff", border: "1px solid #4ade80" };
+  }
+  return { ...base, background: "#1a1a1a", color: "#cbd5e1", border: "1px solid #333" };
+}
 
 function Stepper({ label, value, onChange, step = 1, min, max, color }: {
   label: string; value: number; onChange: (v: number) => void;

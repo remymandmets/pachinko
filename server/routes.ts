@@ -4,10 +4,11 @@ import express from "express";
 import { storage } from "./storage";
 import { db } from "./db";
 import { users, authLogs } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import {
   normalizePhone,
   verifyPassword,
+  hashPassword,
   signSessionToken,
   setSessionCookie,
   clearSessionCookie,
@@ -102,18 +103,288 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Auth: current user
+  // Auth: current user (full profile)
   app.get("/api/auth/me", async (req: Request, res: Response) => {
     if (!req.authUser) {
       return res.json({ user: null });
     }
-    return res.json({
-      user: {
-        id: req.authUser.id,
-        phone: req.authUser.phone,
-        isAdmin: req.authUser.isAdmin,
-      },
-    });
+    try {
+      const rows = await db.select().from(users).where(eq(users.id, req.authUser.id)).limit(1);
+      const u = rows[0];
+      if (!u) {
+        return res.json({ user: null });
+      }
+      return res.json({
+        user: {
+          id: u.id,
+          phone: u.phone,
+          isAdmin: u.isAdmin,
+          age: u.age,
+          parcelLocker: u.parcelLocker,
+          createdAt: u.createdAt,
+        },
+      });
+    } catch (error) {
+      console.error("auth/me error:", error);
+      return res.status(500).json({ error: "Andmete laadimine ebaõnnestus" });
+    }
+  });
+
+  // Auth: update own profile (age, parcelLocker)
+  app.put("/api/auth/me", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const ageRaw = req.body?.age;
+      const parcelRaw = req.body?.parcelLocker;
+
+      const update: { age?: number | null; parcelLocker?: string | null } = {};
+
+      if (ageRaw === null || ageRaw === undefined || ageRaw === "") {
+        update.age = null;
+      } else {
+        const ageNum = Number.parseInt(String(ageRaw), 10);
+        if (!Number.isInteger(ageNum) || ageNum < 0 || ageNum > 130) {
+          return res.status(400).json({ error: "Vigane vanus" });
+        }
+        update.age = ageNum;
+      }
+
+      if (parcelRaw === null || parcelRaw === undefined || parcelRaw === "") {
+        update.parcelLocker = null;
+      } else {
+        const trimmed = String(parcelRaw).trim().slice(0, 200);
+        update.parcelLocker = trimmed.length === 0 ? null : trimmed;
+      }
+
+      await db.update(users).set(update).where(eq(users.id, req.authUser!.id));
+      const rows = await db.select().from(users).where(eq(users.id, req.authUser!.id)).limit(1);
+      const u = rows[0];
+      return res.json({
+        user: u && {
+          id: u.id,
+          phone: u.phone,
+          isAdmin: u.isAdmin,
+          age: u.age,
+          parcelLocker: u.parcelLocker,
+          createdAt: u.createdAt,
+        },
+      });
+    } catch (error) {
+      console.error("auth/me PUT error:", error);
+      return res.status(500).json({ error: "Salvestamine ebaõnnestus" });
+    }
+  });
+
+  // Admin: list users
+  app.get("/api/admin/users", requireAdmin, async (_req: Request, res: Response) => {
+    try {
+      const rows = await db.select().from(users).orderBy(desc(users.createdAt));
+      return res.json({
+        users: rows.map((u) => ({
+          id: u.id,
+          phone: u.phone,
+          age: u.age,
+          parcelLocker: u.parcelLocker,
+          isAdmin: u.isAdmin,
+          createdAt: u.createdAt,
+          lastLoginAt: u.lastLoginAt,
+          totalGamesPlayed: u.totalGamesPlayed,
+        })),
+      });
+    } catch (error) {
+      console.error("admin/users GET error:", error);
+      return res.status(500).json({ error: "Kasutajate laadimine ebaõnnestus" });
+    }
+  });
+
+  // Admin: create user
+  app.post("/api/admin/users", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const phoneRaw = String(req.body?.phone ?? "");
+      const password = String(req.body?.password ?? "");
+      const phone = normalizePhone(phoneRaw);
+      if (!phone) {
+        return res.status(400).json({ error: "Vigane telefoninumber" });
+      }
+      if (password.length < 6) {
+        return res.status(400).json({ error: "Parool peab olema vähemalt 6 tähemärki" });
+      }
+
+      const ageRaw = req.body?.age;
+      let age: number | null = null;
+      if (ageRaw !== null && ageRaw !== undefined && ageRaw !== "") {
+        const n = Number.parseInt(String(ageRaw), 10);
+        if (!Number.isInteger(n) || n < 0 || n > 130) {
+          return res.status(400).json({ error: "Vigane vanus" });
+        }
+        age = n;
+      }
+
+      const parcelLocker = req.body?.parcelLocker
+        ? String(req.body.parcelLocker).trim().slice(0, 200) || null
+        : null;
+      const isAdmin = !!req.body?.isAdmin;
+
+      const existing = await db.select().from(users).where(eq(users.phone, phone)).limit(1);
+      if (existing[0]) {
+        return res.status(409).json({ error: "Selle telefoninumbriga kasutaja on juba olemas" });
+      }
+
+      const passwordHash = await hashPassword(password);
+      const inserted = await db
+        .insert(users)
+        .values({ phone, passwordHash, age, parcelLocker, isAdmin })
+        .returning();
+      const u = inserted[0];
+
+      await db.insert(authLogs).values({
+        userId: req.authUser!.id,
+        phone: req.authUser!.phone,
+        event: "admin_user_created",
+        ip: clientIp(req).slice(0, 64),
+      });
+
+      return res.json({
+        user: {
+          id: u.id,
+          phone: u.phone,
+          age: u.age,
+          parcelLocker: u.parcelLocker,
+          isAdmin: u.isAdmin,
+          createdAt: u.createdAt,
+          lastLoginAt: u.lastLoginAt,
+          totalGamesPlayed: u.totalGamesPlayed,
+        },
+      });
+    } catch (error) {
+      console.error("admin/users POST error:", error);
+      return res.status(500).json({ error: "Kasutaja loomine ebaõnnestus" });
+    }
+  });
+
+  // Admin: update user
+  app.put("/api/admin/users/:id", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const id = Number.parseInt(req.params.id, 10);
+      if (!Number.isInteger(id)) {
+        return res.status(400).json({ error: "Vigane ID" });
+      }
+
+      const existing = await db.select().from(users).where(eq(users.id, id)).limit(1);
+      if (!existing[0]) {
+        return res.status(404).json({ error: "Kasutajat ei leitud" });
+      }
+
+      const update: {
+        phone?: string;
+        passwordHash?: string;
+        age?: number | null;
+        parcelLocker?: string | null;
+        isAdmin?: boolean;
+      } = {};
+
+      if (req.body?.phone !== undefined) {
+        const phone = normalizePhone(String(req.body.phone));
+        if (!phone) return res.status(400).json({ error: "Vigane telefoninumber" });
+        if (phone !== existing[0].phone) {
+          const collision = await db.select().from(users).where(eq(users.phone, phone)).limit(1);
+          if (collision[0]) {
+            return res.status(409).json({ error: "Selle telefoninumbriga kasutaja on juba olemas" });
+          }
+          update.phone = phone;
+        }
+      }
+
+      if (req.body?.password !== undefined && String(req.body.password).length > 0) {
+        const password = String(req.body.password);
+        if (password.length < 6) {
+          return res.status(400).json({ error: "Parool peab olema vähemalt 6 tähemärki" });
+        }
+        update.passwordHash = await hashPassword(password);
+      }
+
+      if (req.body?.age !== undefined) {
+        if (req.body.age === null || req.body.age === "") {
+          update.age = null;
+        } else {
+          const n = Number.parseInt(String(req.body.age), 10);
+          if (!Number.isInteger(n) || n < 0 || n > 130) {
+            return res.status(400).json({ error: "Vigane vanus" });
+          }
+          update.age = n;
+        }
+      }
+
+      if (req.body?.parcelLocker !== undefined) {
+        const v = req.body.parcelLocker;
+        update.parcelLocker = v ? String(v).trim().slice(0, 200) || null : null;
+      }
+
+      if (req.body?.isAdmin !== undefined) {
+        // Prevent demoting yourself if you would be the last admin
+        if (id === req.authUser!.id && existing[0].isAdmin && !req.body.isAdmin) {
+          return res.status(400).json({ error: "Sa ei saa enda admin-õigust ära võtta" });
+        }
+        update.isAdmin = !!req.body.isAdmin;
+      }
+
+      if (Object.keys(update).length > 0) {
+        await db.update(users).set(update).where(eq(users.id, id));
+      }
+
+      const rows = await db.select().from(users).where(eq(users.id, id)).limit(1);
+      const u = rows[0];
+
+      await db.insert(authLogs).values({
+        userId: req.authUser!.id,
+        phone: req.authUser!.phone,
+        event: "admin_user_updated",
+        ip: clientIp(req).slice(0, 64),
+      });
+
+      return res.json({
+        user: u && {
+          id: u.id,
+          phone: u.phone,
+          age: u.age,
+          parcelLocker: u.parcelLocker,
+          isAdmin: u.isAdmin,
+          createdAt: u.createdAt,
+          lastLoginAt: u.lastLoginAt,
+          totalGamesPlayed: u.totalGamesPlayed,
+        },
+      });
+    } catch (error) {
+      console.error("admin/users PUT error:", error);
+      return res.status(500).json({ error: "Kasutaja muutmine ebaõnnestus" });
+    }
+  });
+
+  // Admin: delete user
+  app.delete("/api/admin/users/:id", requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const id = Number.parseInt(req.params.id, 10);
+      if (!Number.isInteger(id)) {
+        return res.status(400).json({ error: "Vigane ID" });
+      }
+      if (id === req.authUser!.id) {
+        return res.status(400).json({ error: "Sa ei saa iseennast kustutada" });
+      }
+      const existing = await db.select().from(users).where(eq(users.id, id)).limit(1);
+      if (!existing[0]) {
+        return res.status(404).json({ error: "Kasutajat ei leitud" });
+      }
+      await db.delete(users).where(eq(users.id, id));
+      await db.insert(authLogs).values({
+        userId: req.authUser!.id,
+        phone: req.authUser!.phone,
+        event: "admin_user_deleted",
+        ip: clientIp(req).slice(0, 64),
+      });
+      return res.json({ success: true });
+    } catch (error) {
+      console.error("admin/users DELETE error:", error);
+      return res.status(500).json({ error: "Kasutaja kustutamine ebaõnnestus" });
+    }
   });
 
   // Save drop mapping from test mode

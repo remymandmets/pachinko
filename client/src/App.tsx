@@ -1,11 +1,15 @@
 import { useEffect, useState, useCallback, createContext, useContext } from "react";
 import SimpleGame from "@/pages/SimpleGame";
 import LoginModal from "@/pages/LoginPage";
+import UserProfileModal from "@/components/UserProfileModal";
 
 export interface AuthUser {
   id: number;
   phone: string;
   isAdmin: boolean;
+  age?: number | null;
+  parcelLocker?: string | null;
+  createdAt?: string | null;
 }
 
 interface AuthContextValue {
@@ -13,6 +17,7 @@ interface AuthContextValue {
   setUser: (user: AuthUser | null) => void;
   logout: () => Promise<void>;
   showLogin: () => void;
+  showProfile: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -27,6 +32,7 @@ function App() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [bootLoaded, setBootLoaded] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -56,6 +62,7 @@ function App() {
   }, []);
 
   const showLogin = useCallback(() => setLoginOpen(true), []);
+  const showProfile = useCallback(() => setProfileOpen(true), []);
   const handleLoggedIn = useCallback((u: AuthUser) => {
     setUser(u);
     setLoginOpen(false);
@@ -81,10 +88,13 @@ function App() {
   }
 
   return (
-    <AuthContext.Provider value={{ user, setUser, logout, showLogin }}>
+    <AuthContext.Provider value={{ user, setUser, logout, showLogin, showProfile }}>
       <SimpleGame />
       {loginOpen && (
         <LoginModal onLoggedIn={handleLoggedIn} onClose={() => setLoginOpen(false)} />
+      )}
+      {profileOpen && user && (
+        <UserProfileModal onClose={() => setProfileOpen(false)} />
       )}
     </AuthContext.Provider>
   );
