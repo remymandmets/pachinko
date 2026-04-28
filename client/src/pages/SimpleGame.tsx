@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import PlinkoSimple, { PlinkoSimpleRef, DEFAULT_SETTINGS, GameSettings, BgAdjust } from "@/components/PlinkoSimple";
+import { useAuth } from "@/App";
 
 function generateArrangements(min: number, max: number): number[][] {
   const range = max - min;
@@ -91,39 +92,17 @@ export default function SimpleGame() {
   const bgAdjustLoaded = useRef(false);
 
   const [activePage, setActivePage] = useState(0);
-  const [pinUnlocked, setPinUnlocked] = useState(false);
-  const [pinInput, setPinInput] = useState("");
-  const [pinError, setPinError] = useState(false);
+  const { user, logout } = useAuth();
+  const isAdmin = !!user?.isAdmin;
   const plinkoRef = useRef<PlinkoSimpleRef>(null);
   const initDone = useRef(false);
   const totalsLoadedRef = useRef(false);
   const settingsPageRef = useRef<HTMLDivElement>(null);
   const touchStartY = useRef(0);
   const touchStartTime = useRef(0);
-  const PIN_CODE = "037";
 
-  // PIN digit handler
-  const handlePinDigit = useCallback((digit: string) => {
-    setPinError(false);
-    const newPin = pinInput + digit;
-    setPinInput(newPin);
-    if (newPin.length === 3) {
-      if (newPin === PIN_CODE) {
-        setPinUnlocked(true);
-        setPinInput("");
-      } else {
-        setPinError(true);
-        setTimeout(() => { setPinInput(""); setPinError(false); }, 400);
-      }
-    }
-  }, [pinInput, PIN_CODE]);
-
-  const handlePinDelete = useCallback(() => {
-    setPinInput(prev => prev.slice(0, -1));
-    setPinError(false);
-  }, []);
-
-  // Swipe handler — needs strong deliberate swipe to switch pages
+  // Swipe handler — needs strong deliberate swipe to switch pages.
+  // Only admins can reach the settings page.
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     touchStartY.current = e.touches[0].clientY;
     touchStartTime.current = Date.now();
@@ -134,10 +113,10 @@ export default function SimpleGame() {
     const dt = Date.now() - touchStartTime.current;
     const velocity = Math.abs(dy) / dt; // px/ms
 
-    if (activePage === 0 && dy > 80 && velocity > 0.3) {
+    if (activePage === 0 && dy > 80 && velocity > 0.3 && isAdmin) {
       setActivePage(1);
     }
-  }, [activePage]);
+  }, [activePage, isAdmin]);
 
   // Settings object for PlinkoSimple (excludes wallGap since it's part of settings now)
   const plinkoSettings = useMemo(() => gameSettings, [gameSettings]);
@@ -480,6 +459,28 @@ export default function SimpleGame() {
           <div style={{ height: "85dvh", position: "relative", flexShrink: 0 }}>
             <PlinkoSimple ref={plinkoRef} onGameEnd={handleGameEnd} settings={plinkoSettings} backgroundImage={backgroundImage} bgAdjust={bgAdjust} />
 
+            {/* Logout button — top-right corner */}
+            <button
+              onClick={() => { logout(); }}
+              style={{
+                position: "absolute",
+                top: 10,
+                right: 10,
+                zIndex: 50,
+                padding: "5px 10px",
+                borderRadius: 6,
+                border: "1px solid #333",
+                background: "rgba(20,20,20,0.7)",
+                color: "#aaa",
+                fontSize: 11,
+                fontWeight: 500,
+                cursor: "pointer",
+                fontFamily: "Inter, sans-serif",
+              }}
+            >
+              Logi välja
+            </button>
+
             {showScore && lastScore !== null && (
               <div
                 style={{
@@ -575,7 +576,7 @@ export default function SimpleGame() {
           </div>
         </div>
 
-        {/* ═══ PAGE 2: Settings (PIN protected) ═══ */}
+        {/* ═══ PAGE 2: Settings (admin only) ═══ */}
         <div
           ref={settingsPageRef}
           style={{
@@ -588,54 +589,18 @@ export default function SimpleGame() {
             overflow: "hidden",
           }}
         >
-          {!pinUnlocked ? (
-            /* ── PIN Entry Screen ── */
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 24, position: "relative" }}>
-              <button onClick={() => { setActivePage(0); setPinInput(""); setPinError(false); }}
-                style={{ position: "absolute", top: 12, left: 12, width: 32, height: 32, borderRadius: 8, border: "1px solid #444", background: "#222", color: "#fff", fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                ▲
+          {!isAdmin ? (
+            <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "#888", fontSize: 14 }}>
+              <button onClick={() => setActivePage(0)} style={{ padding: "10px 20px", borderRadius: 8, border: "1px solid #444", background: "#222", color: "#fff", cursor: "pointer" }}>
+                Tagasi mängu
               </button>
-              <div style={{ fontSize: 14, color: "#666", fontWeight: 600 }}>Sisesta PIN</div>
-              {/* PIN dots */}
-              <div style={{ display: "flex", gap: 16 }}>
-                {[0, 1, 2].map(i => (
-                  <div key={i} style={{
-                    width: 20, height: 20, borderRadius: "50%",
-                    border: `2px solid ${pinError ? "#f87171" : "#444"}`,
-                    background: i < pinInput.length ? (pinError ? "#f87171" : "#059669") : "transparent",
-                    transition: "all 0.15s",
-                    ...(pinError ? { animation: "pinShake 0.4s ease-in-out" } : {}),
-                  }} />
-                ))}
-              </div>
-              {/* Number pad */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, width: 240 }}>
-                {["1","2","3","4","5","6","7","8","9","","0","⌫"].map((key) => (
-                  key === "" ? <div key="empty" /> :
-                  <button
-                    key={key}
-                    onClick={() => key === "⌫" ? handlePinDelete() : handlePinDigit(key)}
-                    style={{
-                      width: 68, height: 68, borderRadius: 16,
-                      border: "1px solid #333",
-                      background: key === "⌫" ? "transparent" : "#1a1a1a",
-                      color: "#fff", fontSize: key === "⌫" ? 24 : 28,
-                      fontWeight: 600, cursor: "pointer",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      WebkitTapHighlightColor: "transparent",
-                      transition: "background 0.1s",
-                    }}
-                  >{key}</button>
-                ))}
-              </div>
             </div>
           ) : (
-            /* ── Settings Content (unlocked) ── */
             <>
               {/* Header */}
               <div style={{ padding: "4px 8px", borderBottom: "1px solid #333", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <button onClick={() => { setActivePage(0); setPinUnlocked(false); setPinInput(""); }}
+                  <button onClick={() => setActivePage(0)}
                     style={{ width: 28, height: 28, borderRadius: 6, border: "1px solid #444", background: "#222", color: "#fff", fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                     ▲
                   </button>

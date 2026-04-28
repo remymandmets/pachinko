@@ -1,11 +1,123 @@
-import type { Express } from "express";
+import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import express from "express";
 import { storage } from "./storage";
+import { db } from "./db";
+import { users, authLogs } from "@shared/schema";
+import { eq } from "drizzle-orm";
+import {
+  normalizePhone,
+  verifyPassword,
+  signSessionToken,
+  setSessionCookie,
+  clearSessionCookie,
+  requireAdmin,
+  requireAuth,
+} from "./auth";
+
+function clientIp(req: Request): string {
+  const fwd = req.headers["x-forwarded-for"];
+  if (typeof fwd === "string" && fwd.length > 0) return fwd.split(",")[0].trim();
+  return req.ip || req.socket.remoteAddress || "";
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Auth: login
+  app.post("/api/auth/login", async (req: Request, res: Response) => {
+    try {
+      const phoneRaw = String(req.body?.phone ?? "");
+      const password = String(req.body?.password ?? "");
+      const phone = normalizePhone(phoneRaw);
+      if (!phone || password.length === 0) {
+        await db.insert(authLogs).values({
+          phone: phoneRaw.slice(0, 32) || null,
+          event: "login_failed",
+          ip: clientIp(req).slice(0, 64),
+        });
+        return res.status(400).json({ error: "Vigane telefoninumber või parool" });
+      }
+
+      const rows = await db.select().from(users).where(eq(users.phone, phone)).limit(1);
+      const user = rows[0];
+      if (!user) {
+        await db.insert(authLogs).values({
+          phone,
+          event: "login_failed",
+          ip: clientIp(req).slice(0, 64),
+        });
+        return res.status(401).json({ error: "Vigane telefoninumber või parool" });
+      }
+
+      const ok = await verifyPassword(password, user.passwordHash);
+      if (!ok) {
+        await db.insert(authLogs).values({
+          userId: user.id,
+          phone,
+          event: "login_failed",
+          ip: clientIp(req).slice(0, 64),
+        });
+        return res.status(401).json({ error: "Vigane telefoninumber või parool" });
+      }
+
+      const token = signSessionToken({ uid: user.id, isAdmin: user.isAdmin });
+      setSessionCookie(res, token);
+      await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
+      await db.insert(authLogs).values({
+        userId: user.id,
+        phone,
+        event: "login",
+        ip: clientIp(req).slice(0, 64),
+      });
+
+      return res.json({
+        user: {
+          id: user.id,
+          phone: user.phone,
+          isAdmin: user.isAdmin,
+        },
+      });
+    } catch (error) {
+      console.error("Login error:", error);
+      return res.status(500).json({ error: "Sisselogimine ebaõnnestus" });
+    }
+  });
+
+  // Auth: logout
+  app.post("/api/auth/logout", async (req: Request, res: Response) => {
+    try {
+      if (req.authUser) {
+        await db.insert(authLogs).values({
+          userId: req.authUser.id,
+          phone: req.authUser.phone,
+          event: "logout",
+          ip: clientIp(req).slice(0, 64),
+        });
+      }
+      clearSessionCookie(res);
+      return res.json({ success: true });
+    } catch (error) {
+      console.error("Logout error:", error);
+      clearSessionCookie(res);
+      return res.json({ success: true });
+    }
+  });
+
+  // Auth: current user
+  app.get("/api/auth/me", async (req: Request, res: Response) => {
+    if (!req.authUser) {
+      return res.json({ user: null });
+    }
+    return res.json({
+      user: {
+        id: req.authUser.id,
+        phone: req.authUser.phone,
+        isAdmin: req.authUser.isAdmin,
+      },
+    });
+  });
+
   // Save drop mapping from test mode
-  app.post("/api/admin/drop-mapping", async (req, res) => {
+  app.post("/api/admin/drop-mapping", requireAdmin, async (req, res) => {
     try {
       const { mappings, testRunId: clientTestRunId } = req.body;
       if (!Array.isArray(mappings) || mappings.length === 0) {
@@ -40,8 +152,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get latest drop mapping
-  app.get("/api/admin/drop-mapping/latest", async (_req, res) => {
+  // Get latest drop mapping (game needs this to render)
+  app.get("/api/admin/drop-mapping/latest", requireAuth, async (_req, res) => {
     try {
       const result = await storage.getLatestDropMapping();
       if (!result) {
@@ -58,8 +170,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get total rules
-  app.get("/api/admin/total-rules", async (_req, res) => {
+  // Get total rules (game needs this)
+  app.get("/api/admin/total-rules", requireAuth, async (_req, res) => {
     try {
       const rules = await storage.getTotalRules();
       res.json(rules);
@@ -70,7 +182,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Save total rules
-  app.put("/api/admin/total-rules", async (req, res) => {
+  app.put("/api/admin/total-rules", requireAdmin, async (req, res) => {
     try {
       const mustRaw = req.body?.mustTotal;
       const avoidRaw = req.body?.avoidTotal;
@@ -96,8 +208,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get game settings
-  app.get("/api/admin/settings", async (_req, res) => {
+  // Get game settings (game needs this)
+  app.get("/api/admin/settings", requireAuth, async (_req, res) => {
     try {
       const settings = await storage.getSettings();
       res.json(settings || {});
@@ -107,8 +219,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Save game settings
-  app.put("/api/admin/settings", async (req, res) => {
+  // Save game settings (admin only)
+  app.put("/api/admin/settings", requireAdmin, async (req, res) => {
     try {
       const settings = req.body;
       if (!settings || typeof settings !== "object") {
@@ -122,8 +234,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get background image
-  app.get("/api/admin/background", async (_req, res) => {
+  // Get background image (game needs this)
+  app.get("/api/admin/background", requireAuth, async (_req, res) => {
     try {
       const dataUrl = await storage.getBackgroundImage();
       res.json({ dataUrl });
@@ -133,8 +245,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Upload background image (base64 data URL)
-  app.post("/api/admin/background", express.json({ limit: "10mb" }), async (req, res) => {
+  // Upload background image (base64 data URL) — admin only
+  app.post("/api/admin/background", requireAdmin, express.json({ limit: "10mb" }), async (req, res) => {
     try {
       const { dataUrl } = req.body;
       if (!dataUrl || typeof dataUrl !== "string" || !dataUrl.startsWith("data:image/")) {
@@ -148,8 +260,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get background adjust settings
-  app.get("/api/admin/background-adjust", async (_req, res) => {
+  // Get background adjust settings (game needs this)
+  app.get("/api/admin/background-adjust", requireAuth, async (_req, res) => {
     try {
       const adjust = await storage.getBackgroundAdjust();
       res.json(adjust || { zoom: 100, x: 50, y: 50 });
@@ -159,8 +271,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Save background adjust settings
-  app.put("/api/admin/background-adjust", async (req, res) => {
+  // Save background adjust settings (admin only)
+  app.put("/api/admin/background-adjust", requireAdmin, async (req, res) => {
     try {
       const { zoom, x, y } = req.body;
       if (typeof zoom !== "number" || typeof x !== "number" || typeof y !== "number") {
