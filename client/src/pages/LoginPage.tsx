@@ -1,10 +1,11 @@
 import { useState, FormEvent } from "react";
 
-interface LoginPageProps {
+interface LoginModalProps {
   onLoggedIn: (user: { id: number; phone: string; isAdmin: boolean }) => void;
+  onClose: () => void;
 }
 
-export default function LoginPage({ onLoggedIn }: LoginPageProps) {
+export default function LoginModal({ onLoggedIn, onClose }: LoginModalProps) {
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -21,13 +22,20 @@ export default function LoginPage({ onLoggedIn }: LoginPageProps) {
         credentials: "include",
         body: JSON.stringify({ phone, password }),
       });
-      const data = await res.json();
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch {
+        // Server returned non-JSON (likely HTML if a route is missing).
+        setError("Server ei vastanud korralikult. Proovi uuesti.");
+        return;
+      }
       if (!res.ok) {
         setError(data?.error || "Sisselogimine ebaõnnestus");
         return;
       }
       onLoggedIn(data.user);
-    } catch (err) {
+    } catch {
       setError("Võrgu viga. Proovi uuesti.");
     } finally {
       setLoading(false);
@@ -36,19 +44,22 @@ export default function LoginPage({ onLoggedIn }: LoginPageProps) {
 
   return (
     <div
+      onClick={onClose}
       style={{
-        minHeight: "100vh",
-        background: "#0a0a0a",
-        color: "#e5e5e5",
-        fontFamily: "Inter, sans-serif",
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.75)",
+        zIndex: 1000,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         padding: 16,
+        fontFamily: "Inter, sans-serif",
       }}
     >
       <form
         onSubmit={handleSubmit}
+        onClick={(e) => e.stopPropagation()}
         style={{
           background: "#111",
           border: "1px solid #333",
@@ -59,8 +70,30 @@ export default function LoginPage({ onLoggedIn }: LoginPageProps) {
           display: "flex",
           flexDirection: "column",
           gap: 14,
+          position: "relative",
         }}
       >
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Sulge"
+          style={{
+            position: "absolute",
+            top: 8,
+            right: 8,
+            width: 28,
+            height: 28,
+            border: "none",
+            background: "transparent",
+            color: "#888",
+            fontSize: 20,
+            cursor: "pointer",
+            lineHeight: 1,
+          }}
+        >
+          ×
+        </button>
+
         <h1
           style={{
             margin: 0,
@@ -87,6 +120,7 @@ export default function LoginPage({ onLoggedIn }: LoginPageProps) {
             onChange={(e) => setPhone(e.target.value)}
             disabled={loading}
             required
+            autoFocus
             style={{
               background: "#141414",
               border: "1px solid #282828",

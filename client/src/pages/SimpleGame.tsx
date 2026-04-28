@@ -92,8 +92,9 @@ export default function SimpleGame() {
   const bgAdjustLoaded = useRef(false);
 
   const [activePage, setActivePage] = useState(0);
-  const { user, logout } = useAuth();
+  const { user, logout, showLogin } = useAuth();
   const isAdmin = !!user?.isAdmin;
+  const isLoggedIn = !!user;
   const plinkoRef = useRef<PlinkoSimpleRef>(null);
   const initDone = useRef(false);
   const totalsLoadedRef = useRef(false);
@@ -342,12 +343,16 @@ export default function SimpleGame() {
   }, [isPlaying, arrangements.length]);
 
   const handlePlay = useCallback(() => {
+    if (!isLoggedIn) {
+      showLogin();
+      return;
+    }
     if (isPlaying || arrangements.length === 0) return;
     setIsPlaying(true);
     setShowScore(false);
     setLastScore(null);
     plinkoRef.current?.dropBalls(arrangements[arrangementIndex]);
-  }, [isPlaying, arrangementIndex, arrangements]);
+  }, [isPlaying, arrangementIndex, arrangements, isLoggedIn, showLogin]);
 
   const handleTest = useCallback(() => {
     if (isPlaying || testRunning) return;
@@ -455,31 +460,9 @@ export default function SimpleGame() {
             flexShrink: 0,
           }}
         >
-          {/* Game area - 80dvh */}
+          {/* Game area - 85dvh */}
           <div style={{ height: "85dvh", position: "relative", flexShrink: 0 }}>
             <PlinkoSimple ref={plinkoRef} onGameEnd={handleGameEnd} settings={plinkoSettings} backgroundImage={backgroundImage} bgAdjust={bgAdjust} />
-
-            {/* Logout button — top-right corner */}
-            <button
-              onClick={() => { logout(); }}
-              style={{
-                position: "absolute",
-                top: 10,
-                right: 10,
-                zIndex: 50,
-                padding: "5px 10px",
-                borderRadius: 6,
-                border: "1px solid #333",
-                background: "rgba(20,20,20,0.7)",
-                color: "#aaa",
-                fontSize: 11,
-                fontWeight: 500,
-                cursor: "pointer",
-                fontFamily: "Inter, sans-serif",
-              }}
-            >
-              Logi välja
-            </button>
 
             {showScore && lastScore !== null && (
               <div
@@ -515,7 +498,7 @@ export default function SimpleGame() {
             )}
           </div>
 
-          {/* Bottom bar: arrows + play - 20dvh */}
+          {/* Bottom bar: arrows + play + footer auth button - 15dvh */}
           <div
             style={{
               height: "15dvh",
@@ -527,8 +510,53 @@ export default function SimpleGame() {
               background: "#111",
               borderTop: "1px solid #333",
               padding: "0 16px",
+              position: "relative",
             }}
           >
+            {/* Login/logout button anchored to right edge of footer */}
+            {isLoggedIn ? (
+              <button
+                onClick={() => { logout(); }}
+                style={{
+                  position: "absolute",
+                  right: 12,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  padding: "6px 10px",
+                  borderRadius: 8,
+                  border: "1px solid #333",
+                  background: "transparent",
+                  color: "#aaa",
+                  fontSize: 11,
+                  fontWeight: 500,
+                  cursor: "pointer",
+                }}
+                aria-label="Logi välja"
+              >
+                Logi välja
+              </button>
+            ) : (
+              <button
+                onClick={showLogin}
+                style={{
+                  position: "absolute",
+                  right: 12,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  padding: "6px 12px",
+                  borderRadius: 8,
+                  border: "1px solid #4ade80",
+                  background: "transparent",
+                  color: "#4ade80",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+                aria-label="Logi sisse"
+              >
+                Logi sisse
+              </button>
+            )}
             <button
               onClick={handlePrev}
               disabled={isPlaying || testRunning}
@@ -550,14 +578,15 @@ export default function SimpleGame() {
               style={{
                 flex: 1, maxWidth: 220, height: "clamp(44px, 12vw, 64px)",
                 borderRadius: 14, border: "none",
-                background: isPlaying || testRunning ? "#065f46" : "#059669",
-                color: "#fff", fontSize: "clamp(18px, 5vw, 28px)",
-                fontWeight: 900, letterSpacing: 2,
+                background: isPlaying || testRunning ? "#065f46" : (isLoggedIn ? "#059669" : "#1f2937"),
+                color: isLoggedIn ? "#fff" : "#9ca3af",
+                fontSize: "clamp(14px, 4vw, 24px)",
+                fontWeight: 900, letterSpacing: isLoggedIn ? 2 : 1,
                 cursor: isPlaying || testRunning ? "not-allowed" : "pointer",
                 opacity: isPlaying || testRunning ? 0.5 : 1,
                 transition: "all 0.2s",
               }}
-            >MÄNGI</button>
+            >{isLoggedIn ? "MÄNGI" : "LOGI SISSE"}</button>
 
             <button
               onClick={handleNext}

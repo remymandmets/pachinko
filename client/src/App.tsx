@@ -1,6 +1,6 @@
-import { useEffect, useState, createContext, useContext } from "react";
+import { useEffect, useState, useCallback, createContext, useContext } from "react";
 import SimpleGame from "@/pages/SimpleGame";
-import LoginPage from "@/pages/LoginPage";
+import LoginModal from "@/pages/LoginPage";
 
 export interface AuthUser {
   id: number;
@@ -12,6 +12,7 @@ interface AuthContextValue {
   user: AuthUser | null;
   setUser: (user: AuthUser | null) => void;
   logout: () => Promise<void>;
+  showLogin: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -24,36 +25,43 @@ export function useAuth(): AuthContextValue {
 
 function App() {
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [bootLoaded, setBootLoaded] = useState(false);
+  const [loginOpen, setLoginOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     fetch("/api/auth/me", { credentials: "include" })
       .then((r) => r.json())
       .then((data) => {
-        if (!cancelled) setUser(data.user || null);
+        if (!cancelled) setUser(data?.user || null);
       })
       .catch(() => {
         if (!cancelled) setUser(null);
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setBootLoaded(true);
       });
     return () => {
       cancelled = true;
     };
   }, []);
 
-  async function logout() {
+  const logout = useCallback(async () => {
     try {
       await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
     } catch {
       /* ignore */
     }
     setUser(null);
-  }
+  }, []);
 
-  if (loading) {
+  const showLogin = useCallback(() => setLoginOpen(true), []);
+  const handleLoggedIn = useCallback((u: AuthUser) => {
+    setUser(u);
+    setLoginOpen(false);
+  }, []);
+
+  if (!bootLoaded) {
     return (
       <div
         style={{
@@ -73,8 +81,11 @@ function App() {
   }
 
   return (
-    <AuthContext.Provider value={{ user, setUser, logout }}>
-      {user ? <SimpleGame /> : <LoginPage onLoggedIn={setUser} />}
+    <AuthContext.Provider value={{ user, setUser, logout, showLogin }}>
+      <SimpleGame />
+      {loginOpen && (
+        <LoginModal onLoggedIn={handleLoggedIn} onClose={() => setLoginOpen(false)} />
+      )}
     </AuthContext.Provider>
   );
 }

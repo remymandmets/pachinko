@@ -152,8 +152,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get latest drop mapping (game needs this to render)
-  app.get("/api/admin/drop-mapping/latest", requireAuth, async (_req, res) => {
+  // Get latest drop mapping (public — game canvas needs this to render)
+  app.get("/api/admin/drop-mapping/latest", async (_req, res) => {
     try {
       const result = await storage.getLatestDropMapping();
       if (!result) {
@@ -170,8 +170,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get total rules (game needs this)
-  app.get("/api/admin/total-rules", requireAuth, async (_req, res) => {
+  // Get total rules (public — game needs this)
+  app.get("/api/admin/total-rules", async (_req, res) => {
     try {
       const rules = await storage.getTotalRules();
       res.json(rules);
@@ -208,8 +208,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get game settings (game needs this)
-  app.get("/api/admin/settings", requireAuth, async (_req, res) => {
+  // Get game settings (public — game needs this)
+  app.get("/api/admin/settings", async (_req, res) => {
     try {
       const settings = await storage.getSettings();
       res.json(settings || {});
@@ -234,8 +234,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get background image (game needs this)
-  app.get("/api/admin/background", requireAuth, async (_req, res) => {
+  // Get background image (public — game needs this)
+  app.get("/api/admin/background", async (_req, res) => {
     try {
       const dataUrl = await storage.getBackgroundImage();
       res.json({ dataUrl });
@@ -260,8 +260,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get background adjust settings (game needs this)
-  app.get("/api/admin/background-adjust", requireAuth, async (_req, res) => {
+  // Get background adjust settings (public — game needs this)
+  app.get("/api/admin/background-adjust", async (_req, res) => {
     try {
       const adjust = await storage.getBackgroundAdjust();
       res.json(adjust || { zoom: 100, x: 50, y: 50 });
