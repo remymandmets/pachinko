@@ -4,6 +4,7 @@ import cookieParser from "cookie-parser";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { attachAuthUser } from "./auth";
+import { runStartupMigrations, bootstrapAdminIfMissing } from "./init";
 
 const app = express();
 
@@ -24,6 +25,13 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  try {
+    await runStartupMigrations();
+    await bootstrapAdminIfMissing();
+  } catch (err) {
+    console.error("[init] startup migrations / bootstrap failed:", err);
+  }
+
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

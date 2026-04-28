@@ -460,8 +460,8 @@ export default function SimpleGame() {
             flexShrink: 0,
           }}
         >
-          {/* Game area - 70dvh */}
-          <div style={{ height: "70dvh", position: "relative", flexShrink: 0 }}>
+          {/* Game area - 75dvh */}
+          <div style={{ height: "75dvh", position: "relative", flexShrink: 0 }}>
             <PlinkoSimple ref={plinkoRef} onGameEnd={handleGameEnd} settings={plinkoSettings} backgroundImage={backgroundImage} bgAdjust={bgAdjust} />
 
             {showScore && lastScore !== null && (
@@ -498,10 +498,10 @@ export default function SimpleGame() {
             )}
           </div>
 
-          {/* Footer 30dvh: row 1 = play controls, row 2 = auth */}
+          {/* Footer 25dvh: row 1 = play controls, row 2 = auth */}
           <div
             style={{
-              height: "30dvh",
+              height: "25dvh",
               flexShrink: 0,
               display: "flex",
               flexDirection: "column",
