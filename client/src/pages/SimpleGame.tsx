@@ -475,8 +475,8 @@ export default function SimpleGame() {
             flexShrink: 0,
           }}
         >
-          {/* Game area — flexes to fill remaining height above the footer */}
-          <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
+          {/* Game area - 80dvh */}
+          <div style={{ height: "80dvh", position: "relative", flexShrink: 0 }}>
             <PlinkoSimple ref={plinkoRef} onGameEnd={handleGameEnd} settings={plinkoSettings} backgroundImage={backgroundImage} bgAdjust={bgAdjust} />
 
             {showScore && lastScore !== null && (

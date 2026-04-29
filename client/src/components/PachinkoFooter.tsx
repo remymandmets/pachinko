@@ -80,16 +80,30 @@ export default function PachinkoFooter({
   return (
     <div
       style={{
+        height: "20dvh",
         flexShrink: 0,
+        display: "flex",
+        flexDirection: "column",
         background: PANEL_BG,
         backdropFilter: "blur(12px)",
         WebkitBackdropFilter: "blur(12px)",
-        paddingBottom: "max(16px, env(safe-area-inset-bottom))",
+        paddingBottom: "env(safe-area-inset-bottom)",
+        overflow: "hidden",
       }}
     >
       <GlowDivider />
       <CounterStrip slots={slots} />
-      <div style={{ padding: "12px 14px 10px" }}>
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          padding: "4px 12px",
+          display: "flex",
+          flexDirection: "column",
+          gap: 4,
+          justifyContent: "center",
+        }}
+      >
         <div
           style={{
             display: "flex",
@@ -97,16 +111,16 @@ export default function PachinkoFooter({
             gap: 0,
             background: "rgba(255,255,255,0.04)",
             border: `1px solid ${PANEL_BORDER}`,
-            borderRadius: 16,
-            padding: 6,
+            borderRadius: 12,
+            padding: 4,
             boxShadow:
               "inset 0 1px 0 rgba(255,255,255,0.05), 0 0 22px rgba(34,255,122,0.12)",
           }}
         >
           <BetStepper dir="down" disabled={busy} onClick={onPrev} />
-          <div style={{ width: 1, background: PANEL_BORDER, margin: "6px 0" }} />
+          <div style={{ width: 1, background: PANEL_BORDER, margin: "4px 0" }} />
           <PlayCore onClick={onPlay} disabled={busy} isLoggedIn={isLoggedIn} />
-          <div style={{ width: 1, background: PANEL_BORDER, margin: "6px 0" }} />
+          <div style={{ width: 1, background: PANEL_BORDER, margin: "4px 0" }} />
           <BetStepper dir="up" disabled={busy} onClick={onNext} />
         </div>
 
@@ -115,7 +129,6 @@ export default function PachinkoFooter({
             display: "grid",
             gridTemplateColumns: "1fr 1fr 1fr",
             gap: 4,
-            marginTop: 10,
           }}
         >
           <NavGhost icon={<BookIcon />} label="Mängujuhend" onClick={onGuide} />
@@ -131,7 +144,7 @@ function GlowDivider() {
   return (
     <div
       style={{
-        height: 14,
+        height: 6,
         flexShrink: 0,
         background:
           "linear-gradient(180deg, rgba(34,255,122,0) 0%, rgba(34,255,122,0.18) 35%, rgba(34,255,122,0) 100%)",
@@ -172,9 +185,10 @@ function PlayCore({
       disabled={disabled}
       style={{
         flex: 1,
-        height: 52,
+        minWidth: 0,
+        height: "100%",
         border: "none",
-        borderRadius: 12,
+        borderRadius: 8,
         cursor: disabled ? "not-allowed" : "pointer",
         opacity: disabled ? 0.55 : 1,
         background:
@@ -185,7 +199,7 @@ function PlayCore({
         fontFamily: '"Space Grotesk", "Inter", system-ui, sans-serif',
         fontWeight: 800,
         letterSpacing: "0.14em",
-        fontSize: 15,
+        fontSize: 16,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -193,6 +207,7 @@ function PlayCore({
         position: "relative",
         overflow: "hidden",
         transition: "opacity 0.15s",
+        padding: "0 8px",
       }}
     >
       <span
@@ -207,7 +222,7 @@ function PlayCore({
           pointerEvents: "none",
         }}
       />
-      <span style={{ position: "relative", fontSize: 18 }}>{label}</span>
+      <span style={{ position: "relative", whiteSpace: "nowrap" }}>{label}</span>
     </button>
   );
 }
@@ -228,7 +243,8 @@ function BetStepper({
       disabled={disabled}
       aria-label={isUp ? "Järgmine paigutus" : "Eelmine paigutus"}
       style={{
-        width: 56,
+        width: 44,
+        flexShrink: 0,
         background: "transparent",
         border: "none",
         cursor: disabled ? "default" : "pointer",
@@ -237,6 +253,7 @@ function BetStepper({
         justifyContent: "center",
         opacity: disabled ? 0.3 : 1,
         color: PURPLE_TEXT,
+        padding: 0,
       }}
     >
       {isUp ? <ArrowRightIcon /> : <ArrowLeftIcon />}
@@ -260,24 +277,30 @@ function NavGhost({
       onClick={onClick}
       style={{
         display: "flex",
-        flexDirection: "column",
+        flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",
-        gap: 4,
-        padding: "8px 4px",
+        gap: 6,
+        padding: "4px 6px",
         background: active ? "rgba(34,255,122,0.08)" : "transparent",
         border: `1px solid ${active ? NEON_DIM : "rgba(255,255,255,0.06)"}`,
-        borderRadius: 10,
+        borderRadius: 8,
         color: active ? NEON : PURPLE_TEXT,
         fontFamily: '"Inter", system-ui, sans-serif',
         fontSize: 11,
         fontWeight: 500,
         letterSpacing: "0.02em",
         cursor: "pointer",
+        whiteSpace: "nowrap",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        minWidth: 0,
       }}
     >
-      {icon}
-      <span>{label}</span>
+      <span style={{ display: "flex", flexShrink: 0 }}>{icon}</span>
+      <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
+        {label}
+      </span>
     </button>
   );
 }
@@ -288,10 +311,11 @@ function CounterStrip({ slots }: { slots: GameSlotsState }) {
   return (
     <div
       style={{
+        flexShrink: 0,
         display: "grid",
         gridTemplateColumns: "1fr 1fr 1fr",
-        gap: 6,
-        padding: "8px 14px 0",
+        gap: 4,
+        padding: "4px 12px 0",
       }}
     >
       {SLOTS.map((s, i) => {
@@ -308,8 +332,8 @@ function CounterStrip({ slots }: { slots: GameSlotsState }) {
               alignItems: "center",
               justifyContent: "space-between",
               gap: 6,
-              padding: "6px 8px",
-              borderRadius: 8,
+              padding: "3px 6px",
+              borderRadius: 6,
               background: isActive
                 ? "rgba(34,255,122,0.08)"
                 : "rgba(255,255,255,0.025)",
@@ -329,7 +353,7 @@ function CounterStrip({ slots }: { slots: GameSlotsState }) {
             <div
               style={{
                 fontFamily: "ui-monospace, Menlo, monospace",
-                fontSize: 10,
+                fontSize: 9,
                 fontWeight: 600,
                 letterSpacing: "0.04em",
                 color: isActive
@@ -364,15 +388,15 @@ function DotPair({
   past: boolean;
 }) {
   return (
-    <div style={{ display: "flex", gap: 4 }}>
+    <div style={{ display: "flex", gap: 3 }}>
       {[0, 1].map((i) => {
         const filled = i < count;
         return (
           <span
             key={i}
             style={{
-              width: 10,
-              height: 10,
+              width: 8,
+              height: 8,
               borderRadius: "50%",
               background: filled
                 ? active
@@ -406,10 +430,26 @@ function ActiveStatusLine({
   remainingBySlot: Remaining;
   minsLeft: number;
 }) {
+  const baseStyle: React.CSSProperties = {
+    gridColumn: "1 / -1",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 6,
+    padding: "2px 0 0",
+    fontFamily: '"Inter", system-ui, sans-serif',
+    fontSize: 10,
+    color: PURPLE_TEXT,
+    letterSpacing: "0.01em",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  };
+
   if (activeIdx === -1) {
     return (
-      <div style={statusLineStyle}>
-        Päeva mängud läbi · uued mängud algavad{" "}
+      <div style={baseStyle}>
+        Päeva mängud läbi · uued algavad{" "}
         <span style={{ color: NEON }}>06:00</span>
       </div>
     );
@@ -421,47 +461,31 @@ function ActiveStatusLine({
 
   if (remaining === 0) {
     return (
-      <div style={{ ...statusLineStyle, color: "rgba(205,182,255,0.55)" }}>
-        Selles vööndis mängud kasutatud · järgmine vöönd avaneb{" "}
+      <div style={{ ...baseStyle, color: "rgba(205,182,255,0.55)" }}>
+        Vööndis kõik mängitud · järgmine{" "}
         <span style={{ color: NEON }}>{closeAt}</span>
       </div>
     );
   }
   return (
-    <div style={statusLineStyle}>
-      <span style={{ color: NEON, fontWeight: 700 }}>{remaining}/2 mängu</span>
+    <div style={baseStyle}>
+      <span style={{ color: NEON, fontWeight: 700 }}>{remaining}/2</span>
       <span style={{ opacity: 0.5 }}>·</span>
       <span style={{ color: urgent ? "#ffb47a" : PURPLE_TEXT }}>
-        {urgent ? "⚠ " : ""}vöönd sulgub {closeAt} · jäänud{" "}
-        {fmtCountdown(minsLeft)}
+        {urgent ? "⚠ " : ""}sulgub {closeAt} · {fmtCountdown(minsLeft)}
       </span>
     </div>
   );
 }
 
-const statusLineStyle: React.CSSProperties = {
-  gridColumn: "1 / -1",
-  display: "flex",
-  justifyContent: "center",
-  alignItems: "center",
-  gap: 6,
-  padding: "6px 0 0",
-  fontFamily: '"Inter", system-ui, sans-serif',
-  fontSize: 11,
-  color: PURPLE_TEXT,
-  letterSpacing: "0.01em",
-  flexWrap: "wrap",
-  textAlign: "center",
-};
-
 function BookIcon() {
   return (
     <svg
-      width={20}
-      height={20}
+      width={14}
+      height={14}
       viewBox="0 0 24 24"
       fill="none"
-      stroke={PURPLE_TEXT}
+      stroke="currentColor"
       strokeWidth={1.6}
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -475,11 +499,11 @@ function BookIcon() {
 function MenuIcon() {
   return (
     <svg
-      width={20}
-      height={20}
+      width={14}
+      height={14}
       viewBox="0 0 24 24"
       fill="none"
-      stroke={PURPLE_TEXT}
+      stroke="currentColor"
       strokeWidth={1.8}
       strokeLinecap="round"
     >
@@ -491,11 +515,11 @@ function MenuIcon() {
 function UserIcon() {
   return (
     <svg
-      width={20}
-      height={20}
+      width={14}
+      height={14}
       viewBox="0 0 24 24"
       fill="none"
-      stroke={PURPLE_TEXT}
+      stroke="currentColor"
       strokeWidth={1.6}
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -508,7 +532,7 @@ function UserIcon() {
 
 function ArrowLeftIcon() {
   return (
-    <svg width={18} height={18} viewBox="0 0 24 24" fill={PURPLE_TEXT}>
+    <svg width={16} height={16} viewBox="0 0 24 24" fill="currentColor">
       <path d="M15 5l-8 7 8 7V5z" />
     </svg>
   );
@@ -516,7 +540,7 @@ function ArrowLeftIcon() {
 
 function ArrowRightIcon() {
   return (
-    <svg width={18} height={18} viewBox="0 0 24 24" fill={PURPLE_TEXT}>
+    <svg width={16} height={16} viewBox="0 0 24 24" fill="currentColor">
       <path d="M9 5l8 7-8 7V5z" />
     </svg>
   );
