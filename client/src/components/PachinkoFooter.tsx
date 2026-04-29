@@ -330,8 +330,8 @@ function CounterStrip({ slots }: { slots: GameSlotsState }) {
               flexDirection: "column",
               alignItems: "center",
               justifyContent: "center",
-              gap: 3,
-              padding: "4px 4px 5px",
+              gap: 6,
+              padding: "9px 6px 10px",
               borderRadius: 6,
               background: isActive
                 ? "rgba(34,255,122,0.08)"
@@ -387,15 +387,15 @@ function DotPair({
   past: boolean;
 }) {
   return (
-    <div style={{ display: "flex", gap: 3 }}>
+    <div style={{ display: "flex", gap: 6 }}>
       {[0, 1].map((i) => {
         const filled = i < count;
         return (
           <span
             key={i}
             style={{
-              width: 8,
-              height: 8,
+              width: 13,
+              height: 13,
               borderRadius: "50%",
               background: filled
                 ? active
@@ -406,10 +406,10 @@ function DotPair({
                 : "transparent",
               border: filled
                 ? "none"
-                : `1.5px solid ${past ? "rgba(205,182,255,0.2)" : "rgba(205,182,255,0.35)"}`,
+                : `2px solid ${past ? "rgba(205,182,255,0.25)" : "rgba(205,182,255,0.45)"}`,
               boxShadow:
                 filled && active
-                  ? "0 0 6px rgba(34,255,122,0.9), 0 0 12px rgba(34,255,122,0.5)"
+                  ? "0 0 8px rgba(34,255,122,0.95), 0 0 16px rgba(34,255,122,0.55)"
                   : "none",
               display: "inline-block",
             }}
