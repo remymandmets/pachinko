@@ -97,10 +97,10 @@ export default function PachinkoFooter({
         style={{
           flex: 1,
           minHeight: 0,
-          padding: "8px 14px",
+          padding: "6px 12px",
           display: "flex",
           flexDirection: "column",
-          gap: 8,
+          gap: 6,
           justifyContent: "center",
         }}
       >
@@ -112,15 +112,13 @@ export default function PachinkoFooter({
             background: "rgba(255,255,255,0.04)",
             border: `1px solid ${PANEL_BORDER}`,
             borderRadius: 14,
-            padding: 5,
+            padding: 4,
             boxShadow:
               "inset 0 1px 0 rgba(255,255,255,0.05), 0 0 22px rgba(34,255,122,0.12)",
           }}
         >
           <BetStepper dir="down" disabled={busy} onClick={onPrev} />
-          <div style={{ width: 1, background: PANEL_BORDER, margin: "5px 0" }} />
           <PlayCore onClick={onPlay} disabled={busy} isLoggedIn={isLoggedIn} />
-          <div style={{ width: 1, background: PANEL_BORDER, margin: "5px 0" }} />
           <BetStepper dir="up" disabled={busy} onClick={onNext} />
         </div>
 
@@ -194,7 +192,7 @@ function PlayCore({
         background:
           "radial-gradient(ellipse at 50% 0%, rgba(95,255,159,0.55), transparent 60%), linear-gradient(180deg, #2bff86 0%, #1ed760 55%, #0fa544 100%)",
         boxShadow:
-          "0 0 0 1.5px rgba(255,255,255,0.45) inset, 0 -2px 0 rgba(0,0,0,0.25) inset, 0 0 18px rgba(34,255,122,0.55), 0 0 38px rgba(34,255,122,0.45), 0 0 70px rgba(34,255,122,0.3)",
+          "0 0 0 1.5px rgba(255,255,255,0.45) inset, 0 -2px 0 rgba(0,0,0,0.25) inset",
         color: "#022410",
         fontFamily: '"Space Grotesk", "Inter", system-ui, sans-serif',
         fontWeight: 800,
@@ -281,7 +279,7 @@ function NavGhost({
         alignItems: "center",
         justifyContent: "center",
         gap: 8,
-        padding: "8px 8px",
+        padding: "6px 8px",
         background: active ? "rgba(34,255,122,0.08)" : "transparent",
         border: `1px solid ${active ? NEON_DIM : "rgba(255,255,255,0.06)"}`,
         borderRadius: 10,
@@ -315,7 +313,7 @@ function CounterStrip({ slots }: { slots: GameSlotsState }) {
         display: "grid",
         gridTemplateColumns: "1fr 1fr 1fr",
         gap: 4,
-        padding: "4px 12px 0",
+        padding: "3px 12px 0",
       }}
     >
       {SLOTS.map((s, i) => {
@@ -329,10 +327,11 @@ function CounterStrip({ slots }: { slots: GameSlotsState }) {
             style={{
               position: "relative",
               display: "flex",
+              flexDirection: "column",
               alignItems: "center",
-              justifyContent: "space-between",
-              gap: 6,
-              padding: "3px 6px",
+              justifyContent: "center",
+              gap: 3,
+              padding: "4px 4px 5px",
               borderRadius: 6,
               background: isActive
                 ? "rgba(34,255,122,0.08)"
@@ -350,12 +349,13 @@ function CounterStrip({ slots }: { slots: GameSlotsState }) {
               opacity: isPast && remaining === 0 ? 0.42 : 1,
             }}
           >
+            <DotPair count={remaining} active={isActive} past={isPast} />
             <div
               style={{
                 fontFamily: "ui-monospace, Menlo, monospace",
-                fontSize: 9,
+                fontSize: 11,
                 fontWeight: 600,
-                letterSpacing: "0.04em",
+                letterSpacing: "0.02em",
                 color: isActive
                   ? NEON
                   : isPast
@@ -365,7 +365,6 @@ function CounterStrip({ slots }: { slots: GameSlotsState }) {
             >
               {s.label}
             </div>
-            <DotPair count={remaining} active={isActive} past={isPast} />
           </div>
         );
       })}
@@ -469,10 +468,10 @@ function ActiveStatusLine({
   }
   return (
     <div style={baseStyle}>
-      <span style={{ color: NEON, fontWeight: 700 }}>{remaining}/2</span>
+      <span style={{ color: NEON, fontWeight: 700 }}>{remaining}/2 mängu</span>
       <span style={{ opacity: 0.5 }}>·</span>
       <span style={{ color: urgent ? "#ffb47a" : PURPLE_TEXT }}>
-        {urgent ? "⚠ " : ""}sulgub {closeAt} · {fmtCountdown(minsLeft)}
+        {urgent ? "⚠ " : ""}vöönd sulgub {closeAt} · jäänud {fmtCountdown(minsLeft)}
       </span>
     </div>
   );

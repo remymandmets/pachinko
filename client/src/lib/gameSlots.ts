@@ -1,7 +1,7 @@
 export const SLOTS = [
-  { id: "morning", label: "06–12", from: 6, to: 12 },
-  { id: "afternoon", label: "12–18", from: 12, to: 18 },
-  { id: "evening", label: "18–24", from: 18, to: 24 },
+  { id: "morning", label: "06:00–12:00", from: 6, to: 12 },
+  { id: "afternoon", label: "12:00–18:00", from: 12, to: 18 },
+  { id: "evening", label: "18:00–24:00", from: 18, to: 24 },
 ] as const;
 
 export type SlotDef = (typeof SLOTS)[number];
