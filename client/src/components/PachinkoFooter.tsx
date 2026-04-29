@@ -80,7 +80,7 @@ export default function PachinkoFooter({
   return (
     <div
       style={{
-        height: "20dvh",
+        height: "30dvh",
         flexShrink: 0,
         display: "flex",
         flexDirection: "column",
@@ -97,10 +97,10 @@ export default function PachinkoFooter({
         style={{
           flex: 1,
           minHeight: 0,
-          padding: "4px 12px",
+          padding: "8px 14px",
           display: "flex",
           flexDirection: "column",
-          gap: 4,
+          gap: 8,
           justifyContent: "center",
         }}
       >
@@ -111,16 +111,16 @@ export default function PachinkoFooter({
             gap: 0,
             background: "rgba(255,255,255,0.04)",
             border: `1px solid ${PANEL_BORDER}`,
-            borderRadius: 12,
-            padding: 4,
+            borderRadius: 14,
+            padding: 5,
             boxShadow:
               "inset 0 1px 0 rgba(255,255,255,0.05), 0 0 22px rgba(34,255,122,0.12)",
           }}
         >
           <BetStepper dir="down" disabled={busy} onClick={onPrev} />
-          <div style={{ width: 1, background: PANEL_BORDER, margin: "4px 0" }} />
+          <div style={{ width: 1, background: PANEL_BORDER, margin: "5px 0" }} />
           <PlayCore onClick={onPlay} disabled={busy} isLoggedIn={isLoggedIn} />
-          <div style={{ width: 1, background: PANEL_BORDER, margin: "4px 0" }} />
+          <div style={{ width: 1, background: PANEL_BORDER, margin: "5px 0" }} />
           <BetStepper dir="up" disabled={busy} onClick={onNext} />
         </div>
 
@@ -128,7 +128,7 @@ export default function PachinkoFooter({
           style={{
             display: "grid",
             gridTemplateColumns: "1fr 1fr 1fr",
-            gap: 4,
+            gap: 6,
           }}
         >
           <NavGhost icon={<BookIcon />} label="Mängujuhend" onClick={onGuide} />
@@ -186,9 +186,9 @@ function PlayCore({
       style={{
         flex: 1,
         minWidth: 0,
-        height: "100%",
+        height: 52,
         border: "none",
-        borderRadius: 8,
+        borderRadius: 10,
         cursor: disabled ? "not-allowed" : "pointer",
         opacity: disabled ? 0.55 : 1,
         background:
@@ -199,7 +199,7 @@ function PlayCore({
         fontFamily: '"Space Grotesk", "Inter", system-ui, sans-serif',
         fontWeight: 800,
         letterSpacing: "0.14em",
-        fontSize: 16,
+        fontSize: 18,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -243,7 +243,7 @@ function BetStepper({
       disabled={disabled}
       aria-label={isUp ? "Järgmine paigutus" : "Eelmine paigutus"}
       style={{
-        width: 44,
+        width: 52,
         flexShrink: 0,
         background: "transparent",
         border: "none",
@@ -280,14 +280,14 @@ function NavGhost({
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",
-        gap: 6,
-        padding: "4px 6px",
+        gap: 8,
+        padding: "8px 8px",
         background: active ? "rgba(34,255,122,0.08)" : "transparent",
         border: `1px solid ${active ? NEON_DIM : "rgba(255,255,255,0.06)"}`,
-        borderRadius: 8,
+        borderRadius: 10,
         color: active ? NEON : PURPLE_TEXT,
         fontFamily: '"Inter", system-ui, sans-serif',
-        fontSize: 11,
+        fontSize: 12,
         fontWeight: 500,
         letterSpacing: "0.02em",
         cursor: "pointer",
@@ -481,8 +481,8 @@ function ActiveStatusLine({
 function BookIcon() {
   return (
     <svg
-      width={14}
-      height={14}
+      width={16}
+      height={16}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -499,8 +499,8 @@ function BookIcon() {
 function MenuIcon() {
   return (
     <svg
-      width={14}
-      height={14}
+      width={16}
+      height={16}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -515,8 +515,8 @@ function MenuIcon() {
 function UserIcon() {
   return (
     <svg
-      width={14}
-      height={14}
+      width={16}
+      height={16}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -532,7 +532,7 @@ function UserIcon() {
 
 function ArrowLeftIcon() {
   return (
-    <svg width={16} height={16} viewBox="0 0 24 24" fill="currentColor">
+    <svg width={18} height={18} viewBox="0 0 24 24" fill="currentColor">
       <path d="M15 5l-8 7 8 7V5z" />
     </svg>
   );
@@ -540,7 +540,7 @@ function ArrowLeftIcon() {
 
 function ArrowRightIcon() {
   return (
-    <svg width={16} height={16} viewBox="0 0 24 24" fill="currentColor">
+    <svg width={18} height={18} viewBox="0 0 24 24" fill="currentColor">
       <path d="M9 5l8 7-8 7V5z" />
     </svg>
   );
