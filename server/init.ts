@@ -32,6 +32,23 @@ export async function runStartupMigrations(): Promise<void> {
       created_at TIMESTAMP DEFAULT NOW() NOT NULL
     )
   `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS onnekuul_user_slot_plays (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      date VARCHAR(10) NOT NULL,
+      slot_id VARCHAR(16) NOT NULL,
+      played INTEGER NOT NULL DEFAULT 0,
+      updated_at TIMESTAMP DEFAULT NOW() NOT NULL,
+      UNIQUE (user_id, date, slot_id)
+    )
+  `);
+
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS idx_onnekuul_user_slot_plays_user_date
+      ON onnekuul_user_slot_plays (user_id, date)
+  `);
 }
 
 export async function bootstrapAdminIfMissing(): Promise<void> {

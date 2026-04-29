@@ -3,8 +3,8 @@ import { createServer, type Server } from "http";
 import express from "express";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, authLogs } from "@shared/schema";
-import { eq, desc } from "drizzle-orm";
+import { users, authLogs, userSlotPlays } from "@shared/schema";
+import { and, eq, desc, sql } from "drizzle-orm";
 import {
   normalizePhone,
   verifyPassword,
@@ -15,6 +15,34 @@ import {
   requireAdmin,
   requireAuth,
 } from "./auth";
+import {
+  PER_SLOT,
+  SLOTS,
+  type Remaining,
+  type ServerSlotId,
+  freshRemaining,
+  getActiveSlot,
+  todayKey,
+} from "./gameSlots";
+
+async function loadRemaining(userId: number, date: string): Promise<Remaining> {
+  const rows = await db
+    .select()
+    .from(userSlotPlays)
+    .where(and(eq(userSlotPlays.userId, userId), eq(userSlotPlays.date, date)));
+  const remaining = freshRemaining();
+  for (const r of rows) {
+    if (
+      r.slotId === "morning" ||
+      r.slotId === "afternoon" ||
+      r.slotId === "evening"
+    ) {
+      const slotId = r.slotId as ServerSlotId;
+      remaining[slotId] = Math.max(0, PER_SLOT - r.played);
+    }
+  }
+  return remaining;
+}
 
 function clientIp(req: Request): string {
   const fwd = req.headers["x-forwarded-for"];
@@ -171,6 +199,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("auth/me PUT error:", error);
       return res.status(500).json({ error: "Salvestamine ebaõnnestus" });
+    }
+  });
+
+  // Game: current user's remaining games per slot for today (Tallinn TZ)
+  app.get("/api/game/slots", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = req.authUser!.id;
+      const { idx, date } = getActiveSlot(new Date());
+      const remaining = await loadRemaining(userId, date);
+      return res.json({ date, activeIdx: idx, remaining });
+    } catch (error) {
+      console.error("game/slots GET error:", error);
+      return res.status(500).json({ error: "Mängude staatuse laadimine ebaõnnestus" });
+    }
+  });
+
+  // Game: consume one play in the active slot. Server-side authoritative —
+  // a transaction with row lock prevents racing two requests past the cap.
+  app.post("/api/game/play", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = req.authUser!.id;
+      const { slot, idx, date } = getActiveSlot(new Date());
+      if (!slot) {
+        const remaining = await loadRemaining(userId, date);
+        return res
+          .status(409)
+          .json({ error: "Selles ajavahemikus ei saa mängida", code: "no_active_slot", remaining, activeIdx: idx, date });
+      }
+
+      // Atomic upsert: INSERT a row at played=1, or — on conflict — bump the
+      // counter only while it's still under the cap. The setWhere clause is
+      // what makes this safe under concurrency: the second of two racing
+      // requests sees a conflict, then the WHERE rejects the update, and
+      // RETURNING is empty, so we know the play was refused.
+      const accepted = await db.transaction(async (tx) => {
+        const inserted = await tx
+          .insert(userSlotPlays)
+          .values({ userId, date, slotId: slot.id, played: 1 })
+          .onConflictDoUpdate({
+            target: [userSlotPlays.userId, userSlotPlays.date, userSlotPlays.slotId],
+            set: {
+              played: sql`${userSlotPlays.played} + 1`,
+              updatedAt: sql`NOW()`,
+            },
+            setWhere: sql`${userSlotPlays.played} < ${PER_SLOT}`,
+          })
+          .returning({ played: userSlotPlays.played });
+        if (inserted.length === 0) return false;
+        await tx
+          .update(users)
+          .set({ totalGamesPlayed: sql`${users.totalGamesPlayed} + 1` })
+          .where(eq(users.id, userId));
+        return true;
+      });
+
+      const remaining = await loadRemaining(userId, date);
+      if (!accepted) {
+        return res
+          .status(409)
+          .json({ error: "Vööndis on mängud läbi", code: "slot_full", remaining, activeIdx: idx, date });
+      }
+      return res.json({ remaining, activeIdx: idx, date, slotId: slot.id });
+    } catch (error) {
+      console.error("game/play POST error:", error);
+      return res.status(500).json({ error: "Mängu salvestamine ebaõnnestus" });
     }
   });
 
@@ -386,6 +479,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(500).json({ error: "Kasutaja kustutamine ebaõnnestus" });
     }
   });
+
+  // Admin: reset a user's slot plays for today (Tallinn TZ). After this the
+  // user's remaining counts go back to PER_SLOT for every slot of the day.
+  app.post(
+    "/api/admin/users/:id/reset-games",
+    requireAdmin,
+    async (req: Request, res: Response) => {
+      try {
+        const id = Number.parseInt(req.params.id, 10);
+        if (!Number.isInteger(id)) {
+          return res.status(400).json({ error: "Vigane ID" });
+        }
+        const existing = await db.select().from(users).where(eq(users.id, id)).limit(1);
+        if (!existing[0]) {
+          return res.status(404).json({ error: "Kasutajat ei leitud" });
+        }
+
+        const date = todayKey(new Date());
+        await db
+          .delete(userSlotPlays)
+          .where(and(eq(userSlotPlays.userId, id), eq(userSlotPlays.date, date)));
+
+        await db.insert(authLogs).values({
+          userId: req.authUser!.id,
+          phone: req.authUser!.phone,
+          event: "admin_user_games_reset",
+          ip: clientIp(req).slice(0, 64),
+        });
+
+        const remaining = await loadRemaining(id, date);
+        return res.json({ success: true, date, remaining });
+      } catch (error) {
+        console.error("admin/users reset-games POST error:", error);
+        return res.status(500).json({ error: "Mängude resetimine ebaõnnestus" });
+      }
+    },
+  );
 
   // Save drop mapping from test mode
   app.post("/api/admin/drop-mapping", requireAdmin, async (req, res) => {

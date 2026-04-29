@@ -1,9 +1,8 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import {
   SLOTS,
   type Remaining,
-  loadRemaining,
-  consumeActive,
+  freshRemaining,
   getActiveSlot,
   timeLeftMins,
   fmtCountdown,
@@ -24,25 +23,81 @@ function useNow(intervalMs = 30000) {
   return now;
 }
 
+export interface ConsumeResult {
+  ok: boolean;
+  code?: "slot_full" | "no_active_slot" | "unauthorized" | "network";
+}
+
 export interface GameSlotsState {
   remainingBySlot: Remaining;
   activeIdx: number;
   minsLeft: number;
-  consumeOne: () => void;
+  consumeOne: () => Promise<ConsumeResult>;
+  refresh: () => Promise<void>;
 }
 
-export function useGameSlots(): GameSlotsState {
+// Subscribes to the server's per-user slot state. When `userId` is null we
+// show full counters locally — the play button still works (it kicks open the
+// login modal upstream) but we never hit the API for an anonymous viewer.
+export function useGameSlots(userId: number | null): GameSlotsState {
   const now = useNow();
-  const [remainingBySlot, setRemainingBySlot] = useState<Remaining>(() =>
-    loadRemaining(),
-  );
+  const [remainingBySlot, setRemainingBySlot] =
+    useState<Remaining>(freshRemaining);
+  const userIdRef = useRef<number | null>(userId);
+  userIdRef.current = userId;
+
+  const refresh = useCallback(async () => {
+    if (userIdRef.current == null) {
+      setRemainingBySlot(freshRemaining());
+      return;
+    }
+    try {
+      const res = await fetch("/api/game/slots", { credentials: "include" });
+      if (!res.ok) return;
+      const data = (await res.json()) as { remaining?: Remaining };
+      if (data?.remaining) setRemainingBySlot(data.remaining);
+    } catch {
+      /* ignore — stale state is preferable to flicker */
+    }
+  }, []);
 
   useEffect(() => {
-    setRemainingBySlot(loadRemaining(now));
-  }, [now]);
+    void refresh();
+  }, [userId, refresh]);
 
-  const consumeOne = useCallback(() => {
-    setRemainingBySlot(consumeActive(new Date()));
+  // Periodic refresh so admin resets and slot rollovers surface without a
+  // page reload. Also refresh when the tab becomes visible again.
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      void refresh();
+    }, 30000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void refresh();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [refresh]);
+
+  const consumeOne = useCallback(async (): Promise<ConsumeResult> => {
+    if (userIdRef.current == null) return { ok: false, code: "unauthorized" };
+    try {
+      const res = await fetch("/api/game/play", {
+        method: "POST",
+        credentials: "include",
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        remaining?: Remaining;
+        code?: ConsumeResult["code"];
+      };
+      if (data?.remaining) setRemainingBySlot(data.remaining);
+      if (!res.ok) return { ok: false, code: data?.code ?? "slot_full" };
+      return { ok: true };
+    } catch {
+      return { ok: false, code: "network" };
+    }
   }, []);
 
   const { idx } = getActiveSlot(now);
@@ -51,6 +106,7 @@ export function useGameSlots(): GameSlotsState {
     activeIdx: idx,
     minsLeft: timeLeftMins(now),
     consumeOne,
+    refresh,
   };
 }
 
@@ -77,6 +133,16 @@ export default function PachinkoFooter({
   busy,
   slots,
 }: FooterProps) {
+  const activeSlotDef =
+    slots.activeIdx >= 0 ? SLOTS[slots.activeIdx] : null;
+  const noPlaysLeft = activeSlotDef
+    ? slots.remainingBySlot[activeSlotDef.id] <= 0
+    : true;
+  // Anonymous viewers tap the button to open the login modal — keep it enabled
+  // for them. Logged-in users get blocked when the active slot is exhausted
+  // (or the time is outside any slot).
+  const playDisabled = busy || (isLoggedIn && noPlaysLeft);
+
   return (
     <div
       style={{
@@ -118,7 +184,7 @@ export default function PachinkoFooter({
           }}
         >
           <BetStepper dir="down" disabled={busy} onClick={onPrev} />
-          <PlayCore onClick={onPlay} disabled={busy} isLoggedIn={isLoggedIn} />
+          <PlayCore onClick={onPlay} disabled={playDisabled} isLoggedIn={isLoggedIn} />
           <BetStepper dir="up" disabled={busy} onClick={onNext} />
         </div>
 

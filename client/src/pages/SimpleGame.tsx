@@ -97,10 +97,10 @@ export default function SimpleGame() {
 
   const [activePage, setActivePage] = useState(0);
   const [infoModal, setInfoModal] = useState<null | "guide" | "menu">(null);
-  const slots = useGameSlots();
   const { user, showLogin, showProfile } = useAuth();
   const isAdmin = !!user?.isAdmin;
   const isLoggedIn = !!user;
+  const slots = useGameSlots(user?.id ?? null);
   const plinkoRef = useRef<PlinkoSimpleRef>(null);
   const initDone = useRef(false);
   const totalsLoadedRef = useRef(false);
@@ -356,13 +356,19 @@ export default function SimpleGame() {
     setArrangementIndex((prev) => (prev + 1) % arrangements.length);
   }, [isPlaying, arrangements.length]);
 
-  const handlePlay = useCallback(() => {
+  const handlePlay = useCallback(async () => {
     if (!isLoggedIn) {
       showLogin();
       return;
     }
     if (isPlaying || arrangements.length === 0) return;
-    slots.consumeOne();
+    const result = await slots.consumeOne();
+    if (!result.ok) {
+      // Server refused the play (slot full / outside hours / network). The
+      // hook has already refreshed `remainingBySlot`, so the footer reflects
+      // the truth — just don't drop balls.
+      return;
+    }
     setIsPlaying(true);
     setShowScore(false);
     setLastScore(null);

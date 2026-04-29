@@ -58,6 +58,17 @@ export const authLogs = pgTable("onnekuul_auth_logs", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Per-user, per-day, per-slot play counter. The triple (user_id, date, slot_id)
+// is unique — DB enforces it so concurrent /api/game/play requests can't race.
+export const userSlotPlays = pgTable("onnekuul_user_slot_plays", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  date: varchar("date", { length: 10 }).notNull(), // "YYYY-MM-DD" in Europe/Tallinn
+  slotId: varchar("slot_id", { length: 16 }).notNull(), // "morning" | "afternoon" | "evening"
+  played: integer("played").notNull().default(0),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 // Insert schemas
 export const insertGameStateSchema = createInsertSchema(gameState);
 export const insertDropMappingSchema = createInsertSchema(dropMapping);
@@ -70,3 +81,4 @@ export type DropMapping = typeof dropMapping.$inferSelect;
 export type TestRun = typeof testRuns.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type AuthLog = typeof authLogs.$inferSelect;
+export type UserSlotPlay = typeof userSlotPlays.$inferSelect;

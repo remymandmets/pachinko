@@ -172,6 +172,29 @@ export default function UsersAdmin({ onBack }: UsersAdminProps) {
     }
   }
 
+  async function resetGames(u: AdminUser) {
+    if (
+      !window.confirm(
+        `Kas tühjendada ${u.phone} tänased mängud? Kasutaja saab uuesti mängida kõikides päeva ajavahemikes.`,
+      )
+    ) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/admin/users/${u.id}/reset-games`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data?.error || "Resetimine ebaõnnestus");
+        return;
+      }
+    } catch {
+      setError("Võrgu viga.");
+    }
+  }
+
   return (
     <div
       style={{
@@ -292,7 +315,21 @@ export default function UsersAdmin({ onBack }: UsersAdminProps) {
                       </span>
                     )}
                   </div>
-                  <div style={{ display: "flex", gap: 4 }}>
+                  <div style={{ display: "flex", gap: 4, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                    <button
+                      onClick={() => resetGames(u)}
+                      style={{
+                        padding: "4px 8px",
+                        borderRadius: 6,
+                        border: "1px solid #1f3a2a",
+                        background: "transparent",
+                        color: "#4ade80",
+                        fontSize: 11,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Reseti mängud
+                    </button>
                     <button
                       onClick={() => startEdit(u)}
                       style={{
