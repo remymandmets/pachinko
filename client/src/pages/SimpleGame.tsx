@@ -3,6 +3,7 @@ import PlinkoSimple, { PlinkoSimpleRef, DEFAULT_SETTINGS, GameSettings, BgAdjust
 import { useAuth } from "@/App";
 import InfoModal from "@/components/InfoModal";
 import UsersAdmin from "@/components/UsersAdmin";
+import PachinkoFooter, { useGameSlots } from "@/components/PachinkoFooter";
 
 function generateArrangements(min: number, max: number): number[][] {
   const range = max - min;
@@ -96,6 +97,7 @@ export default function SimpleGame() {
 
   const [activePage, setActivePage] = useState(0);
   const [infoModal, setInfoModal] = useState<null | "guide" | "menu">(null);
+  const slots = useGameSlots();
   const { user, showLogin, showProfile } = useAuth();
   const isAdmin = !!user?.isAdmin;
   const isLoggedIn = !!user;
@@ -360,11 +362,12 @@ export default function SimpleGame() {
       return;
     }
     if (isPlaying || arrangements.length === 0) return;
+    slots.consumeOne();
     setIsPlaying(true);
     setShowScore(false);
     setLastScore(null);
     plinkoRef.current?.dropBalls(arrangements[arrangementIndex]);
-  }, [isPlaying, arrangementIndex, arrangements, isLoggedIn, showLogin]);
+  }, [isPlaying, arrangementIndex, arrangements, isLoggedIn, showLogin, slots]);
 
   const handleTest = useCallback(() => {
     if (isPlaying || testRunning) return;
@@ -510,117 +513,17 @@ export default function SimpleGame() {
             )}
           </div>
 
-          {/* Footer 20dvh: row 1 = play controls, row 2 = action buttons */}
-          <div
-            style={{
-              height: "20dvh",
-              flexShrink: 0,
-              display: "flex",
-              flexDirection: "column",
-              background: "#111",
-              borderTop: "1px solid #333",
-            }}
-          >
-            {/* Row 1 — play controls */}
-            <div
-              style={{
-                flex: 1,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "clamp(8px, 3vw, 16px)",
-                padding: "0 12px",
-                minHeight: 0,
-              }}
-            >
-              <button
-                onClick={handlePrev}
-                disabled={isPlaying || testRunning}
-                style={{
-                  width: "clamp(40px, 11vw, 56px)", height: "clamp(40px, 11vw, 56px)",
-                  borderRadius: 12, border: "2px solid #333",
-                  background: isPlaying || testRunning ? "#1a1a1a" : "#222",
-                  color: isPlaying || testRunning ? "#555" : "#fff",
-                  fontSize: "clamp(18px, 4.5vw, 26px)",
-                  cursor: isPlaying || testRunning ? "not-allowed" : "pointer",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  transition: "all 0.2s", flexShrink: 0,
-                }}
-              >◀</button>
-
-              <button
-                onClick={handlePlay}
-                disabled={isPlaying || testRunning}
-                style={{
-                  flex: 1, maxWidth: 220, height: "clamp(40px, 11vw, 56px)",
-                  borderRadius: 12, border: "none",
-                  background: isPlaying || testRunning ? "#065f46" : (isLoggedIn ? "#059669" : "#1f2937"),
-                  color: isLoggedIn ? "#fff" : "#9ca3af",
-                  fontSize: "clamp(13px, 3.6vw, 22px)",
-                  fontWeight: 900, letterSpacing: isLoggedIn ? 2 : 1,
-                  cursor: isPlaying || testRunning ? "not-allowed" : "pointer",
-                  opacity: isPlaying || testRunning ? 0.5 : 1,
-                  transition: "all 0.2s",
-                }}
-              >{isLoggedIn ? "MÄNGI" : "LOGI SISSE"}</button>
-
-              <button
-                onClick={handleNext}
-                disabled={isPlaying || testRunning}
-                style={{
-                  width: "clamp(40px, 11vw, 56px)", height: "clamp(40px, 11vw, 56px)",
-                  borderRadius: 12, border: "2px solid #333",
-                  background: isPlaying || testRunning ? "#1a1a1a" : "#222",
-                  color: isPlaying || testRunning ? "#555" : "#fff",
-                  fontSize: "clamp(18px, 4.5vw, 26px)",
-                  cursor: isPlaying || testRunning ? "not-allowed" : "pointer",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  transition: "all 0.2s", flexShrink: 0,
-                }}
-              >▶</button>
-            </div>
-
-            {/* Row 2 — 3 action buttons (Mängujuhend / Menüü / Logi sisse|Konto) */}
-            <div
-              style={{
-                flex: 1,
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr 1fr",
-                gap: 8,
-                padding: "6px 12px",
-                borderTop: "1px solid #1f1f1f",
-                minHeight: 0,
-              }}
-            >
-              <button
-                onClick={() => setInfoModal("guide")}
-                style={footerActionButtonStyle("neutral")}
-              >
-                Mängujuhend
-              </button>
-              <button
-                onClick={() => setInfoModal("menu")}
-                style={footerActionButtonStyle("neutral")}
-              >
-                Menüü
-              </button>
-              {isLoggedIn ? (
-                <button
-                  onClick={showProfile}
-                  style={footerActionButtonStyle("green")}
-                >
-                  Konto
-                </button>
-              ) : (
-                <button
-                  onClick={showLogin}
-                  style={footerActionButtonStyle("red")}
-                >
-                  Logi sisse
-                </button>
-              )}
-            </div>
-          </div>
+          <PachinkoFooter
+            onPrev={handlePrev}
+            onNext={handleNext}
+            onPlay={handlePlay}
+            onGuide={() => setInfoModal("guide")}
+            onMenu={() => setInfoModal("menu")}
+            onAccount={isLoggedIn ? showProfile : showLogin}
+            isLoggedIn={isLoggedIn}
+            busy={isPlaying || testRunning}
+            slots={slots}
+          />
         </div>
 
         {/* ═══ PAGE 2: Settings (admin only) ═══ */}
@@ -781,34 +684,6 @@ const boxBtn: React.CSSProperties = {
   background: "transparent", color: "#059669", fontSize: 11, fontWeight: 700,
   cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
 };
-
-function footerActionButtonStyle(variant: "neutral" | "red" | "green"): React.CSSProperties {
-  const base: React.CSSProperties = {
-    width: "100%",
-    height: "100%",
-    minHeight: 0,
-    borderRadius: 10,
-    fontSize: "clamp(11px, 3vw, 14px)",
-    fontWeight: 600,
-    cursor: "pointer",
-    transition: "all 0.15s",
-    padding: "0 6px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontFamily: "Inter, sans-serif",
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-  };
-  if (variant === "red") {
-    return { ...base, background: "#dc2626", color: "#fff", border: "1px solid #ef4444" };
-  }
-  if (variant === "green") {
-    return { ...base, background: "#16a34a", color: "#fff", border: "1px solid #4ade80" };
-  }
-  return { ...base, background: "#1a1a1a", color: "#cbd5e1", border: "1px solid #333" };
-}
 
 function Stepper({ label, value, onChange, step = 1, min, max, color }: {
   label: string; value: number; onChange: (v: number) => void;
